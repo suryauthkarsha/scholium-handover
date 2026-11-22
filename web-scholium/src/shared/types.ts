@@ -34,8 +34,8 @@ export const PHASE_NAMES: Record<Phase, string> = {
   done: "Done",
 };
 export type SandboxExecutor = "astra-shell" | "fable-bash";
-/** The most subagents one run may ever create. It was 100 until November 2026. */
-export const SUBAGENT_HARD_CAP = 200;
+/** The most subagents one run may ever create. It was 100 until November 2026, then 200 for a short while. */
+export const SUBAGENT_HARD_CAP = 1000;
 /** How many levels of handing work down a run may allow. The subagent total still bounds the size of the tree. */
 export const DEPTH_HARD_CAP = 5;
 
@@ -124,6 +124,8 @@ export interface RunState {
   subagents: SubagentCounts;
   /** Set once the old limit of 100 subagents has been looked at, so a limit of 100 chosen later is left alone. */
   capRaised?: boolean;
+  /** The most a project could have when this one was last opened; missing means 200. A project still at that figure is moved up once when the most goes up. */
+  capAt?: number;
   spend: { usd: number; reservedUsd: number; calls: number; usage: Usage };
   toolStatus: Record<string, ToolStatus>;
   counters: Record<string, number>;

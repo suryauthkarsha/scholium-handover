@@ -9,6 +9,7 @@ import {
   Settings2,
   Square,
   Trash2,
+  X,
 } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import {
@@ -440,10 +441,32 @@ const EDGE = {
   muted: "border-rule",
 } as const;
 
+const HIDDEN_KEY = "scholium:hidden-notes";
+
+/** Notes about a tool or Google Drive that were hidden on this device. A note with different wording shows again. */
+function storedHidden(): string[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Things the server has said about the run as a whole: why it is waiting, what failed, how it ended. */
 function Notices() {
-  const { run, view } = useRunCtx();
-  const items: { key: string; tone: keyof typeof EDGE; body: ReactNode }[] = [];
+  const { id, run, view } = useRunCtx();
+  const [hidden, setHidden] = useState<string[]>(storedHidden);
+  const hide = (mark: string): void => {
+    const next = [...hidden.filter((h) => h !== mark), mark].slice(-100);
+    setHidden(next);
+    try {
+      localStorage.setItem(HIDDEN_KEY, JSON.stringify(next));
+    } catch {
+      // Not remembered, but hidden for this visit.
+    }
+  };
+  const items: { key: string; tone: keyof typeof EDGE; body: ReactNode; mark?: string }[] = [];
   if (run.status === "draft")
     items.push({
       key: "draft",
@@ -479,12 +502,14 @@ function Notices() {
         key: `tool-${tool}`,
         tone: "warn",
         body: `${tool} is not available to this run: ${st.detail}`,
+        mark: `${id}|tool-${tool}|${st.detail}`,
       });
   if (run.driveError)
     items.push({
       key: "drive",
       tone: "warn",
       body: `Google Drive: ${run.driveError}`,
+      mark: `${id}|drive|${run.driveError}`,
     });
   if (run.branchedFrom) {
     items.push({
@@ -506,17 +531,37 @@ function Notices() {
   }
   if (view.linkNote && view.link !== "live")
     items.push({ key: "link", tone: "warn", body: view.linkNote });
-  if (!items.length) return null;
+  const shown = items.filter((n) => !n.mark || !hidden.includes(n.mark));
+  if (!shown.length) return null;
   return (
     <div className="no-print max-h-32 shrink-0 space-y-1.5 overflow-y-auto border-b px-4 py-2.5 text-[0.84rem] md:px-5">
-      {items.map((n) => (
-        <p
-          key={n.key}
-          className={`break-words border-l-2 pl-2.5 ${EDGE[n.tone]}`}
-        >
-          {n.body}
-        </p>
-      ))}
+      {shown.map((n) => {
+        const mark = n.mark;
+        return mark ? (
+          <p
+            key={n.key}
+            className={`flex items-start gap-2 border-l-2 pl-2.5 ${EDGE[n.tone]}`}
+          >
+            <span className="min-w-0 flex-1 break-words">{n.body}</span>
+            <button
+              type="button"
+              onClick={() => hide(mark)}
+              aria-label="Hide this note"
+              title="Hide this note"
+              className="press -my-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </p>
+        ) : (
+          <p
+            key={n.key}
+            className={`break-words border-l-2 pl-2.5 ${EDGE[n.tone]}`}
+          >
+            {n.body}
+          </p>
+        );
+      })}
     </div>
   );
 }

@@ -80,9 +80,11 @@ describe("monthly ceiling", () => {
 });
 
 describe("free allowances", () => {
-  it("pauses at 80% of the daily backend allowance and clears at the next UTC day", () => {
+  it("pauses just short of the daily backend allowance, not at 80%, and clears at the next UTC day", () => {
     const u = newUsage(T0);
-    addUsage(u, { written: 79_999 }, T0);
+    addUsage(u, { written: 80_000 }, T0);
+    expect(allowanceBlocked(u, T0)).toBeNull();
+    addUsage(u, { written: 14_999 }, T0);
     expect(allowanceBlocked(u, T0)).toBeNull();
     addUsage(u, { written: 1 }, T0);
     expect(allowanceBlocked(u, T0)).toContain("rows written");

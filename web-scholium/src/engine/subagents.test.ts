@@ -33,12 +33,12 @@ const subCount = (h: Harness): number => h.eng.all("agent").filter((a) => a.kind
 describe("the limit of subagents per run", () => {
   it("is enforced when one request asks for more", () => {
     const h = atPhase(makeHarness(), "work");
-    const r = h.eng.spawn(lead(h), specs(230, "wide"));
-    expect(r.created).toHaveLength(200);
-    expect(subCount(h)).toBe(200);
-    expect(r.text).toMatch(/limit of 200 subagents is reached/);
-    expect(h.eng.run.subagents.created).toBe(200);
-    expect(new Set(r.created.map((a) => a.id)).size).toBe(200);
+    const r = h.eng.spawn(lead(h), specs(1030, "wide"));
+    expect(r.created).toHaveLength(1000);
+    expect(subCount(h)).toBe(1000);
+    expect(r.text).toMatch(/limit of 1000 subagents is reached/);
+    expect(h.eng.run.subagents.created).toBe(1000);
+    expect(new Set(r.created.map((a) => a.id)).size).toBe(1000);
   });
 
   it("is shared by all leads and by subagents that delegate further", () => {

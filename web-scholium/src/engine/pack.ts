@@ -47,7 +47,7 @@ function standing(e: Engine, agent: Agent): string {
   lines.push(`Lead models: ${leads.map((l) => `${l.name} (${MODELS[l.model].label})`).join("; ")}.`);
   if (agent.kind === "lead") lines.push(`You are ${agent.name}, lead of your own team. Ids of your team's items carry your team name in the lists below.`);
   lines.push(
-    `Budget: ${fmtUsd(run.spend.usd)} of ${fmtUsd(cfg.limits.spendUsd)} spent · active time ${fmtDuration(run.activeMs)}${cfg.limits.untilSpend ? "" : ` of ${cfg.limits.runtimeMin} min`} · subagents created: ${run.subagents.created} of ${Math.min(cfg.limits.subagentCap, 100)} (${run.subagents.running} running, ${run.subagents.queued} queued).`,
+    `Budget: ${fmtUsd(run.spend.usd)} of ${fmtUsd(cfg.limits.spendUsd)} spent · active time ${fmtDuration(run.activeMs)}${cfg.limits.untilSpend ? "" : ` of ${cfg.limits.runtimeMin} min`} · subagents created: ${run.subagents.created} of ${e.subagentCap()} (${run.subagents.running} running, ${run.subagents.queued} queued).`,
   );
   const off: string[] = [];
   const t = cfg.tools;

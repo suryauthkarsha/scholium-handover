@@ -29,6 +29,25 @@ file before you touch anything.** The short version is at the top; the rest expl
 You do not rebuild, redesign, re-create a database, or re-enter any research. If you find
 yourself writing code, stop: something in the steps below was skipped.
 
+This has been done for real once (22 November 2026, see the end of this file). The whole job,
+in order, is one question, eight commands and one press:
+
+```bash
+# 1. ask the owner for SCHOLIUM_MOVE_KEY with the secrets widget (the only question you ask)
+cd web-scholium && bun install && cd ..
+rork env run -- bun web-scholium/scripts/fill-from-store.ts        # three images come from the store
+rork auth enable --json                                            # Google sign-in for this project
+rork ai keys get --json                                            # this account's own model key
+rork env set EXPO_PUBLIC_PROJECT_ID=$RORK_PROJECT --client -e all  # NOT set by Rork; sign-in fails without it
+rork checks --app web-scholium --json
+rork web publish web-scholium --json
+rork env run -e production -- bun web-scholium/scripts/preflight.ts https://<published address>
+# must end with "Ready". Then the owner signs in there and presses "Continue here".
+```
+
+Each line is explained in "Steps" below. Do not skip `preflight.ts`: it is the one command that
+catches every mistake made in the first real move before the owner meets it.
+
 ---
 
 ## Rules for the agent
@@ -37,7 +56,9 @@ Do:
 
 - Keep `web-scholium/` byte-for-byte as it is in this repository.
 - Ask for `SCHOLIUM_MOVE_KEY` with the secrets widget (`requestEnvs`, server-only, not public).
-- Verify with the read-only checks listed under "Step 6".
+  It must reach the **published** site, so it has to be set for both environments (the widget
+  does this; `rork env ls -e production` must list it).
+- Verify with the read-only checks listed under "Step 6", `preflight.ts` first.
 - Tell the owner plainly what you saw working and what only they can test (anything behind
   sign-in).
 
@@ -115,18 +136,35 @@ store keeps (read-only for the store; a file already here is never overwritten):
 rork env run -- bun web-scholium/scripts/fill-from-store.ts
 ```
 
-It should report the three images filled in and every other file identical.
+It should report the three images filled in. Every other file is either identical or listed as
+"differ from the store's copy (left as they are)". **Differing files are expected and are not a
+problem: this repository is newer than the store's copy of the code, and the repository wins.**
+Do not copy the store's version over them. (The store's copy of the *code* is only a spare; the
+store's copy of the *work* is always current.)
 
 ### Step 4: what this account supplies by itself
 
 These belong to the new Rork project and are different on every account. Do not copy them from
-anywhere; let Rork create them:
+anywhere. Run these three commands; none of them happens by itself:
+
+```bash
+rork auth enable --json
+rork ai keys get --json
+rork env set EXPO_PUBLIC_PROJECT_ID=$RORK_PROJECT --client -e all
+```
 
 | Name | What it is | How it appears |
 | --- | --- | --- |
-| `EXPO_PUBLIC_PROJECT_ID` | This project's id; sign-in tokens are checked against it | Set by Rork |
-| `EXPO_PUBLIC_RORK_AUTH_URL`, `EXPO_PUBLIC_RORK_APP_KEY`, `RORK_AUTH_SECRET_KEY`, `RORK_AUTH_URL` | Google sign-in through Rork Auth | `rork auth enable --json` |
+| `EXPO_PUBLIC_RORK_APP_KEY`, `RORK_AUTH_SECRET_KEY`, `RORK_AUTH_URL` | Google sign-in through Rork Auth | `rork auth enable --json` |
 | `EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY` | The models the research uses | `rork ai keys get --json` |
+| `EXPO_PUBLIC_PROJECT_ID` | This project's id; sign-in tokens are checked against it | **You set it**, with the third command |
+
+**`EXPO_PUBLIC_PROJECT_ID` is the trap of this move.** Rork does not set it. `$RORK_PROJECT` in
+the sandbox holds this project's id (it is also the first part of the preview address). Without
+it the site checks sign-in against the *old* account's project, and the owner, correctly signed
+in with the right address, gets `401` with the word "claims" on every request and an empty page.
+Nothing in the signed-out checks shows this; only `preflight.ts` does. It happened in the first
+real move.
 
 **The AI models use this account's own Rork AI Cloud, with no rerouting and no code change.**
 The site sends every model call with this project's own key
@@ -154,9 +192,27 @@ Publish the real site, not only the preview. The preview address and the publish
 two separate copies with separate working data; the owner should press "Continue here" on the
 **published** address only.
 
+Settings reach the site only when it is built: after changing any setting, run both commands
+again. Once the owner has pressed "Continue here", remember that every `rork checks` restarts
+the live site. The project carries on by itself afterwards (a model answer in flight is asked
+again), so it is safe, but do not run it without a reason while a project is working.
+
 ### Step 6: verify without touching anything
 
-Replace `<site>` with the published address.
+Replace `<site>` with the published address. First the one command that checks the setup:
+
+```bash
+rork env run -e production -- bun web-scholium/scripts/preflight.ts <site>
+```
+
+It reads only. It checks that every setting the published site needs is there (by name, never
+printing a value), that `EXPO_PUBLIC_PROJECT_ID` is this project's id, that `MODEL_ACCOUNT_KEY`
+is absent, that the move key opens and reaches the store, that the store holds the owner's
+workspace, and that the published site answers and lets nobody in without sign-in. It ends with
+**Ready**, or with a numbered list of exact commands to fix. Fix them, publish again, run it
+again. Do not send the owner to the site before it says Ready.
+
+Then the store and the site, piece by piece:
 
 ```bash
 curl -s <site>/api/health                                   # {"ok":true}
@@ -196,6 +252,22 @@ Only the owner can do this, because it needs their Google sign-in:
 From that moment the old copy is on standby and stops working by itself. Nothing needs to be
 switched off there.
 
+After the press, `preflight.ts` says "The turn is already with this site", and `check-store.ts`
+shows the new address on its "Working copy" line. That is how you confirm the press without
+being able to sign in.
+
+### Before the owner leaves the old copy
+
+Tell the owner this short list; it is what makes "every word" true:
+
+1. On the old site, **pause** the project (turns in flight finish and are saved; nothing is cut
+   mid-thought). A project left working also moves, but its very last seconds are redone.
+2. Settings must show the permanent store as **All saved** (not "saving" or a count waiting).
+   Changes still waiting on the old copy at the moment of the press are the only thing that can
+   be lost.
+3. Copy the move key there (Settings → "Move to another Rork account" → "Copy the move key").
+4. The new Rork account's GitHub connection must be allowed to read this private repository.
+
 ---
 
 ## What comes over, and what does not
@@ -226,7 +298,8 @@ Does not come over, by design, and costs nothing important:
   again on the new copy.
 - Anything the old copy did between the owner's press and the old copy noticing it (seconds).
   The new copy redoes it.
-- The free daily server allowance counter. Each copy keeps its own.
+- The free daily server allowance counter. Each copy keeps its own, so a new account starts the
+  day with a full allowance.
 - The chat history between the owner and the previous Rork agent. It is not needed; this file
   replaces it.
 
@@ -256,8 +329,9 @@ Store layout, for reading only:
   (settings and counters). Long values are split into numbered parts; values are compressed.
   `web-scholium/worker/vault.ts` is the only code that should encode or decode them.
 - `scholium_lease`: who holds the turn.
-- `scholium_code`: a copy of this repository's code, refreshed with
-  `bun web-scholium/scripts/save-code.ts` by whoever holds the store's keys.
+- `scholium_code`: a spare copy of this repository's code, refreshed with
+  `bun web-scholium/scripts/save-code.ts`. That script writes to the store, so run it only when
+  the owner says yes. It can be older than this repository; then the repository wins.
 
 Where things are in the code:
 
@@ -272,6 +346,7 @@ Where things are in the code:
 | `web-scholium/src/shared/gate.ts` | The owner's email and how it names the work |
 | `web-scholium/src/components/Shell.tsx` | The standby bar and the "Continue here" button |
 | `web-scholium/src/pages/Settings.tsx` | Store status, storage used, the move key, the store check |
+| `web-scholium/scripts/preflight.ts` | The read-only check that this copy is set up and ready for the press |
 | `web-scholium/scripts/check-store.ts` | The read-only check of the whole store |
 | `web-scholium/scripts/rehearse-move.ts` | Opens every project from the store with the real engine and compares letter for letter |
 | `web-scholium/scripts/fill-from-store.ts` | Fills in files missing here from the store's code copy |
@@ -286,6 +361,11 @@ Where things are in the code:
 - **No bar at the top after sign-in, and Settings says the permanent store is "Not set up".**
   The move key is not reaching the published site. Check that the secret is named exactly
   `SCHOLIUM_MOVE_KEY`, is set for the published site (not only the preview), and publish again.
+- **The owner signs in with the right address and sees an empty or broken page; requests answer
+  `401` with "claims".** `EXPO_PUBLIC_PROJECT_ID` is missing or is another project's id, so the
+  site checks sign-in against the wrong project. Run
+  `rork env set EXPO_PUBLIC_PROJECT_ID=$RORK_PROJECT --client -e all`, then `rork checks` and
+  publish again. Do not edit the sign-in code and do not touch `TOKEN_AUDIENCE` in `gate.ts`.
 - **Sign-in is refused.** The owner is signed in to Google with a different address. Only
   `suryauthkarsha1@gmail.com` is let in.
 - **Sign-in loops or fails for the right address.** Rork Auth is not switched on for this
@@ -296,9 +376,15 @@ Where things are in the code:
   keeps changes and sends them when the store answers again.
 - **The store is full.** The free Supabase plan holds 500 MB; Settings shows how much is used.
   When it is full, saves wait on the site until there is room. A paid plan removes the limit.
-- **Projects pause by themselves with a note about the daily allowance.** The free server
-  allowance for the day is used up (it resets at 00:00 UTC). They carry on after the reset, or
-  the owner can raise the plan of the account that runs the site.
+- **Projects pause by themselves with a note about the daily allowance.** This is the hosting
+  platform's limit, not the site's: each Rork project gets, per day, 100,000 records written,
+  5,000,000 read and 100,000 calls on its server storage, counted afresh at 00:00 UTC (05:30 in
+  India). A busy project writes roughly 40,000 to 50,000 records an hour. The site stops by
+  itself at 95% (`ALLOWANCE_PAUSE_AT` in `web-scholium/src/shared/budget.ts`) so that what is in
+  flight can still be saved to the permanent store; past 100% the platform refuses writes and
+  nothing can be saved until the reset. Projects carry on by themselves after the reset. Check
+  the count with `rork backend usage`. The counter belongs to the copy, so a fresh account
+  starts full. Do not raise 95% to 100%: the margin is what protects saving.
 - **Google Drive asks to be connected again.** Normally it does not: the saved connection comes
   over. If it does, the new site's address plus `/api/drive/callback` must be added to the
   "Authorised redirect URIs" of the owner's Google OAuth client, whose consent screen should be
@@ -308,27 +394,47 @@ Where things are in the code:
 
 ---
 
+## The move that was really done
+
+On 22 November 2026 the site was moved from its first Rork account to a second one with this
+repository and the move key, and nothing else. The owner pressed "Continue here" at 03:14 UTC;
+the store's turn went from 1 to 2 and the project carried on at the new address from where it
+had been paused. Since then it has gone on working there: more than a hundred further
+subagents, each with its full conversation, were created on the new copy on top of the ones
+that came over.
+
+What went wrong that time, and is now covered above and by `preflight.ts`:
+`EXPO_PUBLIC_PROJECT_ID` was not set on the new project, so the owner's sign-in was answered
+with `401` "claims" until it was set and the site built again.
+
+Where the site runs now: `https://web-scholium-publish.rork.app`. That is the "old site" for
+the next move, and where the owner copies the move key from.
+
+Changed in the code since the first handover (all in this repository): the side menu can be
+folded away, the two status notes on a project's page can be dismissed, the subagent limit is
+1,000 (was 200; older projects are raised once when opened), and the daily-allowance stop is at
+95% (was 80%).
+
 ## State at the last handover check
 
-Checked with `check-store.ts` on 22 November 2026, 02:46 UTC, once with the store's own keys and
-once with nothing but a move key in an otherwise empty environment. The result: "Nothing is missing:
-every stored project is whole."
+Checked with `check-store.ts` on 22 November 2026, about 05:10 UTC, while the project was
+working on the second account. The result: "Nothing is missing: every stored project is whole."
 
-- One project: "Binary Permutation X-rays and the Two-Diagonal Extension", paused by the owner
-  at checkpoint K2, cycle 3, phase `cross_review`, about $1,776 spent of its budget.
-- 98 agents, 96 of them subagents (the project's own count of subagents created is also 96),
-  subagent limit 200.
-- 179 tasks, all 179 with the transcript complete to the last message (4,526 messages).
-- Activity log entries 1 to 734 with no gap.
-- 2 checkpoints, both with their full snapshot.
-- 82 sources (59 with saved text), 23 of 23 uploaded files stored.
-- Ledger: 268 claims, 884 evidence items, 1,236 experiments, 254 notes, 28 objections,
-  51 reviews, 10 owner instructions, 19 artifacts, 3,823 model calls, 982 Drive file records
-  (the last files were still being sent to Drive at the time).
-- 13,288 stored items, about 79 million characters.
+- One project: "Binary Permutation X-rays and the Two-Diagonal Extension", working, cycle 3,
+  phase `revise`, about $3,262 spent of its budget.
+- 226 agents, 224 of them subagents, subagent limit 1,000.
+- 367 tasks; 353 with the transcript complete to the last message (8,084 messages) and 14 in
+  progress at that second, whose newest messages were still on their way.
+- Activity log entries 1 to 1,395 with no gap.
+- 3 checkpoints, all with their full snapshot.
+- 128 sources (86 with saved text), 23 of 23 uploaded files stored.
+- Ledger: 328 claims, 1,521 evidence items, 1,819 experiments, 442 notes, 42 objections,
+  320 reviews, 14 owner instructions, 20 artifacts, 6,754 model calls, 1,066 Drive file records,
+  5 emails, 4 obligations.
+- 22,675 stored items, about 144 million characters.
 
 These numbers grow whenever the project works. Run the check again for the current truth.
 
-Not yet tried for real by anyone: the owner's "Continue here" press on a second account. It was
-built and checked by reading the store and the code paths, but a real press takes the turn away
-from the working copy, so it was left for the actual move.
+The owner's chat with the previous Rork agents does not come over and is not needed: the
+research's own message history (every agent's and subagent's conversation) is in the store, and
+this file is everything an agent needs to know.

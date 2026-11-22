@@ -272,6 +272,7 @@ export class Engine {
       approachCommitted: {},
       subagents: { created: 0, running: 0, queued: 0, completed: 0, failed: 0, cancelled: 0 },
       capRaised: true,
+      capAt: SUBAGENT_HARD_CAP,
       spend: { usd: 0, reservedUsd: 0, calls: 0, usage: zeroUsage() },
       toolStatus: {},
       counters: {},
@@ -313,16 +314,16 @@ export class Engine {
     }
     run.spend.reservedUsd = 0;
     if (run.status === "running") run.lastTickAt = this.now();
-    // Projects made while 100 was the most a project could have are moved to the new limit once.
-    let raised = false;
-    if (run.capRaised !== true) {
-      raised = run.config.limits.subagentCap === 100 && SUBAGENT_HARD_CAP > 100;
-      if (raised) run.config = { ...run.config, limits: { ...run.config.limits, subagentCap: SUBAGENT_HARD_CAP } };
-      run.capRaised = true;
-    }
+    // Projects still at what used to be the most a project could have (100, then 200) are moved to the new limit once.
+    // A lower figure the owner chose, or the old figure chosen again afterwards, is left alone.
+    const was = run.capRaised !== true ? 100 : (run.capAt ?? 200);
+    const raised = was < SUBAGENT_HARD_CAP && run.config.limits.subagentCap === was;
+    if (raised) run.config = { ...run.config, limits: { ...run.config.limits, subagentCap: SUBAGENT_HARD_CAP } };
+    run.capRaised = true;
+    run.capAt = SUBAGENT_HARD_CAP;
     this.touch();
     this.loaded = true;
-    if (raised) this.event("info", "run", `The limit on subagents for this project went from 100 to ${SUBAGENT_HARD_CAP}. The spending limit is unchanged.`);
+    if (raised) this.event("info", "run", `The limit on subagents for this project went from ${was} to ${SUBAGENT_HARD_CAP}. The spending limit is unchanged.`);
     if (interrupted) this.event("warn", "run", `The run's host restarted; ${interrupted} task${interrupted === 1 ? "" : "s"} resumed from the last saved turn.`);
     this.flush();
     return true;

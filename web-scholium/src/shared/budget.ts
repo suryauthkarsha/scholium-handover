@@ -6,8 +6,12 @@ export const MAX_MONTHLY_CAP_USD = 5000;
 export const MIN_GRANT_USD = 1;
 /** The backend's free daily allowance (per project, reset at 00:00 UTC). Past it the backend pauses; it never bills. */
 export const DO_DAILY_ALLOWANCE = { written: 100_000, read: 5_000_000, calls: 100_000 } as const;
-/** Runs are paused when any counter reaches this share of the allowance, so the app stops before the platform does. */
-export const ALLOWANCE_PAUSE_AT = 0.8;
+/**
+ * Runs are paused when any counter reaches this share of the allowance. It was 0.8; the owner asked for that stop to go.
+ * What is left is only the room work already in flight needs to save its results before the platform's own wall at 100%,
+ * past which every call to this site fails until 00:00 UTC.
+ */
+export const ALLOWANCE_PAUSE_AT = 0.95;
 /** Daily caps on free-tier side effects. Resend's free plan allows 100 emails a day; Drive's free API quota is far higher. */
 export const DAILY_TAKE_CAPS = { email: 30, drive: 600 } as const;
 export type TakeKind = keyof typeof DAILY_TAKE_CAPS;

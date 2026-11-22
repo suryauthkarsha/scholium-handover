@@ -50,9 +50,9 @@ describe("model allowlist", () => {
     }
   });
 
-  it("clamps limits and never allows more than 200 subagents", () => {
+  it("clamps limits and never allows more than 1000 subagents", () => {
     const c = sanitizeConfig({ limits: { subagentCap: 5000, maxDepth: 9, spendUsd: -3, runtimeMin: 1, maxCycles: 0 }, alerts: { intervalMin: 1 } });
-    expect(c.limits.subagentCap).toBe(200);
+    expect(c.limits.subagentCap).toBe(1000);
     expect(c.limits.maxDepth).toBe(5);
     expect(c.limits.spendUsd).toBe(1);
     expect(c.limits.runtimeMin).toBe(5);

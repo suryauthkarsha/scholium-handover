@@ -1,6 +1,6 @@
 // The frame around every signed-in screen: the project sidebar, the month's spending, and the account.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, LogOut, Menu, Play, Plus, Settings2 } from "lucide-react";
+import { Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Play, Plus, Settings2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -73,7 +73,78 @@ function RunLink({
   );
 }
 
-function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+const SIDEBAR_KEY = "scholium:sidebar";
+
+/** Whether the project column is folded away on wide screens. Remembered on this device. */
+function storedCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_KEY) === "closed";
+  } catch {
+    return false;
+  }
+}
+
+const RAIL_BTN = "press flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground";
+
+/** What is left of the sidebar while it is folded away: the way back, a new project, and one dot per project. */
+function Rail({ onExpand }: { onExpand: () => void }) {
+  const ws = useWorkspace();
+  const runs = [...(ws.data?.runs ?? [])].sort(
+    (a, b) => b.updatedAt - a.updatedAt,
+  );
+  return (
+    <div className="paper flex h-full w-12 flex-col items-center gap-1.5 bg-sidebar pb-2.5 pt-4 text-sidebar-foreground">
+      <button
+        type="button"
+        onClick={onExpand}
+        aria-label="Show the project list"
+        title="Show the project list"
+        className={`${RAIL_BTN} border bg-card`}
+      >
+        <PanelLeftOpen className="h-4 w-4" />
+      </button>
+      <Link
+        to="/new"
+        aria-label="New project"
+        title="New project"
+        className="press flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-primary text-primary-foreground"
+      >
+        <Plus className="h-4 w-4" />
+      </Link>
+      <nav className="mt-2 flex min-h-0 flex-1 flex-col items-center gap-0.5 overflow-y-auto">
+        {runs.map((r) => {
+          const s = STATUS[r.status] ?? STATUS.draft;
+          const name = r.title || r.goal || "Untitled project";
+          return (
+            <NavLink
+              key={r.id}
+              to={`/r/${r.id}`}
+              aria-label={name}
+              title={`${name} · ${s.label}`}
+              className={({ isActive }) =>
+                `flex h-8 w-8 shrink-0 items-center justify-center rounded-sm transition-colors ${isActive ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/60"}`
+              }
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${r.status === "running" ? "live-dot" : DOT[s.tone]}`}
+              />
+            </NavLink>
+          );
+        })}
+      </nav>
+      <Link
+        to="/settings"
+        aria-label="Settings"
+        title="Settings"
+        className={RAIL_BTN}
+      >
+        <Settings2 className="h-4 w-4" />
+      </Link>
+    </div>
+  );
+}
+
+function Sidebar({ onNavigate, onCollapse }: { onNavigate?: () => void; onCollapse?: () => void }) {
   const { access, signOut } = useAuth();
   const ws = useWorkspace();
   const runs = [...(ws.data?.runs ?? [])].sort(
@@ -100,7 +171,20 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             Scholium
           </span>
         </Link>
-        <ThemeToggle />
+        <div className="flex items-center gap-1.5">
+          <ThemeToggle />
+          {onCollapse && (
+            <button
+              type="button"
+              onClick={onCollapse}
+              aria-label="Hide the project list"
+              title="Hide the project list"
+              className="press inline-flex h-8 w-8 items-center justify-center rounded-sm border bg-card text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="px-3">
@@ -277,11 +361,28 @@ function Standby() {
 
 export default function Shell() {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(storedCollapsed);
   const location = useLocation();
+  const fold = (closed: boolean): void => {
+    setCollapsed(closed);
+    try {
+      localStorage.setItem(SIDEBAR_KEY, closed ? "closed" : "open");
+    } catch {
+      // Not remembered, but applied for this visit.
+    }
+  };
   return (
     <div className="flex h-dvh overflow-hidden">
-      <aside className="no-print hidden w-[17.5rem] shrink-0 border-r border-sidebar-border md:block">
-        <Sidebar />
+      <aside
+        className={`no-print hidden shrink-0 overflow-hidden border-r border-sidebar-border transition-[width] duration-200 ease-out motion-reduce:transition-none md:block ${collapsed ? "w-12" : "w-[17.5rem]"}`}
+      >
+        {collapsed ? (
+          <Rail onExpand={() => fold(false)} />
+        ) : (
+          <div className="h-full w-[17.5rem]">
+            <Sidebar onCollapse={() => fold(true)} />
+          </div>
+        )}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print flex h-12 shrink-0 items-center gap-2 border-b px-3 md:hidden">

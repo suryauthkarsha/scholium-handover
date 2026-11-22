@@ -9,7 +9,12 @@ The essentials:
 - The research itself is **not in this repository**. It lives in a permanent store that belongs
   to the owner's email, `suryauthkarsha1@gmail.com`.
 - The only thing to ask the owner for is one secret, `SCHOLIUM_MOVE_KEY`, through the secrets
-  widget. Never print it, never commit it, never ask for it in chat.
+  widget, as your first action (they copy it from the old site: Settings → "Move to another Rork
+  account" → "Copy the move key"). Never print it, never commit it, never ask for it in chat.
+  Do everything else without asking.
+- The AI models already use the Rork AI Cloud of whichever account runs the site. Run
+  `rork ai keys get --json`, make sure no secret named `MODEL_ACCOUNT_KEY` is set, and change no
+  code.
 - Do **not** create a database or backend, do **not** run `supabase/migrations/`, do **not**
   write to the store, and do **not** press or script "Continue here". That press is the owner's.
 - Sign-in keys and model keys come from the new Rork project itself (`rork auth enable --json`,

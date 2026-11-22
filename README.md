@@ -19,7 +19,9 @@ file before you touch anything.** The short version is at the top; the rest expl
    - this repository, and
    - one secret called the **move key** (`SCHOLIUM_MOVE_KEY`). It is *not* in this repository
      and must never be. The owner copies it from the old site: Settings → "Move to another Rork
-     account" → "Copy the move key".
+     account" → "Copy the move key". The owner expects to hand over only the link to this
+     repository, so **ask for this one value yourself**, as your first action, with the secrets
+     widget, and say in one sentence where to copy it from. Do everything else without asking.
 3. Your job is to **publish this code unchanged**, with that one secret set. Then the owner opens
    the published site, signs in with `suryauthkarsha1@gmail.com`, and presses **Continue here**
    in the bar at the top. Everything comes back and paused projects start working again.
@@ -126,8 +128,17 @@ anywhere; let Rork create them:
 | `EXPO_PUBLIC_RORK_AUTH_URL`, `EXPO_PUBLIC_RORK_APP_KEY`, `RORK_AUTH_SECRET_KEY`, `RORK_AUTH_URL` | Google sign-in through Rork Auth | `rork auth enable --json` |
 | `EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY` | The models the research uses | `rork ai keys get --json` |
 
-Model use is billed to the account that runs the site. After the move, that is the new account.
-The project's own budget and what it has spent so far come over from the store.
+**The AI models use this account's own Rork AI Cloud, with no rerouting and no code change.**
+The site sends every model call with this project's own key
+(`EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY`), which `rork ai keys get --json` creates. The move key
+carries no model key from the old account, on purpose. The one thing to check: the optional
+secret `MODEL_ACCOUNT_KEY` must **not** be set (it would send model calls to some other
+account). `web-scholium/src/shared/modelAccount.ts` is the single place that decides this; do
+not edit it. If the owner says "route the models to the current AI cloud", this paragraph is
+all that is meant, and it is already how the site behaves.
+
+Model use is therefore billed to the account that runs the site. After the move, that is the
+new account. The project's own budget and what it has spent so far come over from the store.
 
 Sign-in: Google sign-in must be switched on for the project (the `auth` skill). Do not change
 the sign-in code. Only `suryauthkarsha1@gmail.com` is let in; that is intended.

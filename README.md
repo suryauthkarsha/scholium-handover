@@ -164,6 +164,18 @@ curl -s -o /dev/null -w '%{http_code}\n' <site>/api/workspace   # 401 while sign
 bun web-scholium/scripts/check-store.ts                     # ends with "Nothing is missing: every stored project is whole."
 ```
 
+Then rehearse the move itself, still without touching anything:
+
+```bash
+rork env run -- bun web-scholium/scripts/rehearse-move.ts   # ends with "Rehearsal passed"
+```
+
+`rehearse-move.ts` reads every project out of the store the way a new copy does, opens it with
+the site's own research engine (no model is called, no work is done), and confirms letter for
+letter that every record and every message of every agent's and subagent's conversation,
+including the model's saved reasoning, is what the store holds. It lists each unfinished task
+and exactly where its agent stands. Show the owner its output before they press "Continue here".
+
 `check-store.ts` only reads. It walks the whole store and confirms that every project record,
 every agent and subagent, every task with its transcript complete to the last message, the
 activity log without a gap, the checkpoints, the source texts and the uploaded files are all
@@ -201,6 +213,12 @@ Comes over, complete:
 - Sources and their saved text, uploaded files, the record of files sent to Google Drive, and
   the Drive connection itself.
 - Workspace settings, the overall budget, method notes.
+
+How an agent picks up: each agent's whole conversation is saved after every turn, with the
+model's reasoning and its exact original reply. On the new copy the engine hands that same
+conversation back to the model, so the agent continues from its last finished turn. A project
+paused by the owner lets turns in flight finish first, so nothing is cut mid-thought. Pause
+before moving.
 
 Does not come over, by design, and costs nothing important:
 
@@ -255,6 +273,7 @@ Where things are in the code:
 | `web-scholium/src/components/Shell.tsx` | The standby bar and the "Continue here" button |
 | `web-scholium/src/pages/Settings.tsx` | Store status, storage used, the move key, the store check |
 | `web-scholium/scripts/check-store.ts` | The read-only check of the whole store |
+| `web-scholium/scripts/rehearse-move.ts` | Opens every project from the store with the real engine and compares letter for letter |
 | `web-scholium/scripts/fill-from-store.ts` | Fills in files missing here from the store's code copy |
 | `supabase/migrations/` | How the store was set up. A record. Do not run again. |
 

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "bun install --frozen-lockfile",
+  "buildCommand": "EXPO_PUBLIC_RORK_AUTH_URL=/rork-auth EXPO_PUBLIC_RORK_APP_KEY=rpk_nikj4dc8tnrezd7le1x080rjghs4aker VITE_BACKEND_ORIGIN=https://scholium.rork.app bun run build",
+  "outputDirectory": "dist/client",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://scholium.rork.app/api/:path*"
+    },
+    {
+      "source": "/rork-auth/oauth/:path*",
+      "destination": "https://api.rork.com/oauth/:path*"
+    },
+    {
+      "source": "/((?!api/|rork-auth/|assets/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-rrTTfQKtJkcGtXS/ujgR86PY2bPvstuiZu/0/JuxhJQ=' 'sha256-RSJAEwtS4cU5+jwsbadrfn6vn6sBTmxaVOMV2r23zJ0='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.googleusercontent.com; font-src 'self' data:; connect-src 'self' https://api.rork.com wss://scholium.rork.app; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=()"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    }
+  ]
+}

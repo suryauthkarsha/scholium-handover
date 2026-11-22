@@ -1,0 +1,754 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Scholium: a working manuscript. Warm paper, deep ink, and vermilion kept for what a rubricator would mark:
+   the things that need the reader's attention. All colours are HSL triplets. */
+
+@layer base {
+  :root {
+    --background: 40 33% 96%;
+    --foreground: 30 12% 12%;
+    --card: 42 42% 98%;
+    --card-foreground: 30 12% 12%;
+    --popover: 42 42% 98%;
+    --popover-foreground: 30 12% 12%;
+    --primary: 28 14% 14%;
+    --primary-foreground: 40 33% 96%;
+    --secondary: 38 22% 90%;
+    --secondary-foreground: 30 12% 16%;
+    --muted: 38 20% 91%;
+    --muted-foreground: 30 8% 38%;
+    --accent: 36 28% 88%;
+    --accent-foreground: 30 12% 12%;
+    --destructive: 4 62% 40%;
+    --destructive-foreground: 40 33% 97%;
+    --border: 35 18% 82%;
+    --input: 35 16% 76%;
+    --ring: 14 70% 41%;
+    --radius: 0.25rem;
+
+    --rubric: 14 70% 41%;
+    --rubric-soft: 14 60% 92%;
+    --ok: 152 42% 27%;
+    --ok-soft: 140 30% 90%;
+    --warn: 36 88% 33%;
+    --warn-soft: 42 70% 88%;
+    --rule: 35 16% 86%;
+    --glow: 44 70% 99%;
+    /* Depth: the lighter edge of an inked button, the colour shadows fall in, gilt for ornaments, and the paper's grain. */
+    --primary-hi: 28 12% 24%;
+    --shade: 28 30% 18%;
+    --gilt: 40 62% 44%;
+    --vignette: 30 44% 80%;
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .15 0 0 0 0 .1 .12 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+    --m-astra62: 187 62% 27%;
+    --m-astra6: 226 44% 44%;
+    --m-fable52: 30 82% 36%;
+    --m-gpt55pro: 318 36% 38%;
+
+    --sidebar-background: 38 26% 93%;
+    --sidebar-foreground: 30 12% 18%;
+    --sidebar-primary: 28 14% 14%;
+    --sidebar-primary-foreground: 40 33% 96%;
+    --sidebar-accent: 36 26% 87%;
+    --sidebar-accent-foreground: 30 12% 12%;
+    --sidebar-border: 35 18% 82%;
+    --sidebar-ring: 14 70% 41%;
+  }
+
+  .dark {
+    --background: 30 10% 7%;
+    --foreground: 40 26% 87%;
+    --card: 30 9% 10%;
+    --card-foreground: 40 26% 87%;
+    --popover: 30 9% 11%;
+    --popover-foreground: 40 26% 87%;
+    --primary: 40 26% 87%;
+    --primary-foreground: 30 10% 8%;
+    --secondary: 30 8% 16%;
+    --secondary-foreground: 40 26% 87%;
+    --muted: 30 8% 14%;
+    --muted-foreground: 36 10% 62%;
+    --accent: 30 8% 18%;
+    --accent-foreground: 40 26% 90%;
+    --destructive: 4 66% 56%;
+    --destructive-foreground: 30 10% 7%;
+    --border: 30 8% 20%;
+    --input: 30 8% 26%;
+    --ring: 14 80% 58%;
+
+    --rubric: 14 80% 60%;
+    --rubric-soft: 14 40% 16%;
+    --ok: 150 42% 56%;
+    --ok-soft: 150 26% 14%;
+    --warn: 40 86% 58%;
+    --warn-soft: 40 40% 15%;
+    --rule: 30 8% 17%;
+    --glow: 32 16% 12%;
+    --primary-hi: 42 36% 94%;
+    --shade: 0 0% 0%;
+    --gilt: 42 70% 60%;
+    --vignette: 24 60% 20%;
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 .95 0 0 0 0 .85 .07 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+    --m-astra62: 184 58% 56%;
+    --m-astra6: 226 76% 74%;
+    --m-fable52: 34 88% 60%;
+    --m-gpt55pro: 318 52% 70%;
+
+    --sidebar-background: 30 10% 9%;
+    --sidebar-foreground: 40 22% 82%;
+    --sidebar-primary: 40 26% 87%;
+    --sidebar-primary-foreground: 30 10% 8%;
+    --sidebar-accent: 30 8% 16%;
+    --sidebar-accent-foreground: 40 26% 90%;
+    --sidebar-border: 30 8% 19%;
+    --sidebar-ring: 14 80% 58%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-size: 15px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "ss01", "cv05";
+    background-image:
+      var(--grain),
+      radial-gradient(
+        120% 70% at 50% -10%,
+        hsl(var(--glow)) 0%,
+        transparent 62%
+      ),
+      radial-gradient(
+        90% 60% at 100% 112%,
+        hsl(var(--vignette) / 0.3) 0%,
+        transparent 62%
+      );
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.012em;
+    text-wrap: balance;
+  }
+
+  p,
+  li {
+    text-wrap: pretty;
+  }
+
+  /* Every control changes colour smoothly instead of snapping. */
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  summary {
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      opacity 0.15s ease;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: hsl(var(--muted-foreground) / 0.65);
+  }
+
+  /* Typing fields get a soft halo instead of a hard outline. */
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+    border-color: hsl(var(--ring) / 0.7);
+    box-shadow: 0 0 0 3px hsl(var(--ring) / 0.16);
+  }
+
+  summary {
+    border-radius: 2px;
+  }
+  summary:hover {
+    color: hsl(var(--foreground));
+  }
+
+  [role="tab"][aria-selected="true"] {
+    font-weight: 600;
+  }
+
+  ::selection {
+    background: hsl(var(--rubric) / 0.22);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--input)) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--input));
+    border-radius: 9px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.6);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Dialogs and menus float above the page like a loose leaf. */
+  [role="dialog"][data-state],
+  [role="alertdialog"][data-state],
+  [role="menu"][data-state],
+  [role="listbox"][data-state] {
+    box-shadow:
+      inset 0 1px 0 hsl(var(--glow) / 0.8),
+      0 8px 18px -10px hsl(var(--shade) / 0.3),
+      0 40px 80px -34px hsl(var(--shade) / 0.55);
+  }
+
+  /* Formulas sit at the size of the words around them, not a fifth larger. */
+  .katex {
+    font-size: 1.06em;
+  }
+}
+
+@layer components {
+  /* A rubric: the small vermilion heading that opens a section, as in a ruled manuscript. */
+  .rubric {
+    @apply font-sans text-[0.72rem] font-semibold uppercase;
+    letter-spacing: 0.14em;
+    color: hsl(var(--rubric));
+  }
+
+  .eyebrow {
+    @apply font-sans text-[0.72rem] font-medium uppercase text-muted-foreground;
+    letter-spacing: 0.12em;
+  }
+
+  /* A gloss: a reviewer's note set against the text it comments on. */
+  .gloss {
+    @apply border-l-2 pl-3 text-[0.93rem];
+    border-color: hsl(var(--rubric) / 0.55);
+  }
+
+  .hairline {
+    border-color: hsl(var(--rule));
+  }
+
+  /* Paper with its grain, and a leaf of it lifted off the desk. */
+  .paper {
+    background-image: var(--grain);
+  }
+  .sheet {
+    background-image: var(--grain);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--glow) / 0.9),
+      0 1px 2px hsl(var(--shade) / 0.06),
+      0 14px 30px -20px hsl(var(--shade) / 0.38);
+  }
+  /* The shaded gutter where the sidebar meets the page. */
+  .gutter {
+    box-shadow: inset -14px 0 18px -16px hsl(var(--shade) / 0.22);
+  }
+  .sheet-head {
+    background-image: linear-gradient(
+      180deg,
+      hsl(var(--card) / 0.9),
+      hsl(var(--card) / 0.25)
+    );
+    box-shadow: 0 12px 22px -20px hsl(var(--shade) / 0.5);
+  }
+
+  /* A ruled line that is drawn in under a section heading, opening in vermilion. */
+  .ruled {
+    position: relative;
+  }
+  .ruled::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--rubric) / 0.75) 0,
+      hsl(var(--rubric) / 0.75) 1.75rem,
+      hsl(var(--rule)) 1.75rem,
+      hsl(var(--rule)) 72%,
+      transparent
+    );
+    transform-origin: left;
+    animation: draw-x 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .lozenge {
+    display: inline-block;
+    width: 0.4rem;
+    height: 0.4rem;
+    margin-right: 0.5rem;
+    vertical-align: 0.06em;
+    background: hsl(var(--rubric));
+    transform: rotate(45deg);
+  }
+  /* The stroke under a page title, and its rubricated first letter. */
+  .flourish {
+    display: block;
+    width: 3.25rem;
+    height: 2px;
+    margin-top: 0.9rem;
+    border-radius: 2px;
+    background: linear-gradient(90deg, hsl(var(--rubric)), hsl(var(--gilt)));
+    transform-origin: left;
+    animation: draw-x 0.8s 0.15s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .initial::first-letter {
+    color: hsl(var(--rubric));
+  }
+
+  /* A row in a list: a vermilion mark grows in the margin when it is pointed at. */
+  .leaf::before {
+    content: "";
+    position: absolute;
+    left: -0.5rem;
+    top: 0.7rem;
+    bottom: 0.7rem;
+    width: 2px;
+    background: hsl(var(--rubric));
+    transform: scaleY(0);
+    transform-origin: top;
+    transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+    pointer-events: none;
+  }
+  @media (min-width: 640px) {
+    .leaf::before {
+      left: 0;
+    }
+  }
+  .leaf:hover::before,
+  .leaf:focus-within::before {
+    transform: scaleY(1);
+  }
+  .mark-in {
+    transform-origin: top;
+    animation: draw-y 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  /* Inked buttons: a soft edge of light, a shadow underneath, and a sheen that crosses when pointed at. */
+  .press.bg-primary {
+    background-image:
+      linear-gradient(
+        105deg,
+        transparent 42%,
+        hsl(0 0% 100% / 0.16) 50%,
+        transparent 58%
+      ),
+      linear-gradient(180deg, hsl(var(--primary-hi)), hsl(var(--primary)));
+    background-size:
+      260% 100%,
+      100% 100%;
+    background-position:
+      140% 0,
+      0 0;
+    background-repeat: no-repeat;
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.14),
+      0 1px 2px hsl(var(--shade) / 0.3),
+      0 8px 16px -10px hsl(var(--shade) / 0.55);
+  }
+  .press.bg-primary:hover:not(:disabled) {
+    @apply -translate-y-px;
+    background-position:
+      -40% 0,
+      0 0;
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.18),
+      0 2px 4px hsl(var(--shade) / 0.3),
+      0 14px 22px -12px hsl(var(--shade) / 0.6);
+  }
+  .press.border:hover:not(:disabled) {
+    @apply -translate-y-px;
+    box-shadow:
+      inset 0 1px 0 hsl(var(--glow) / 0.9),
+      0 8px 16px -12px hsl(var(--shade) / 0.5);
+  }
+
+  /* Progress that fills in from the left, the step being worked on, and lines standing in for text still loading. */
+  .meter-fill {
+    background-image: linear-gradient(
+      90deg,
+      transparent 40%,
+      hsl(0 0% 100% / 0.22)
+    );
+    transform-origin: left;
+    animation: draw-x 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .seg-next {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--secondary)) 0%,
+      hsl(var(--rubric) / 0.6) 50%,
+      hsl(var(--secondary)) 100%
+    );
+    background-size: 200% 100%;
+    animation: slide 2.2s linear infinite;
+  }
+  .skeleton-line {
+    height: 0.6rem;
+    border-radius: 2px;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--secondary)) 25%,
+      hsl(var(--accent)) 50%,
+      hsl(var(--secondary)) 75%
+    );
+    background-size: 200% 100%;
+    animation: slide 1.5s linear infinite;
+  }
+
+  /* The sign-in folio: it drifts slightly and leans toward the pointer. */
+  .float {
+    animation: float 9s ease-in-out infinite;
+  }
+  .folio {
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .draw-clip {
+    clip-path: inset(-40% 100% -40% 0);
+    animation: reveal 0.9s 0.6s cubic-bezier(0.6, 0.1, 0.2, 1) forwards;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-sm border px-1.5 py-px font-mono text-[0.72rem] leading-5;
+    letter-spacing: 0.01em;
+  }
+
+  .ref {
+    @apply cursor-pointer rounded-sm border px-1 py-px font-mono text-[0.78em] no-underline transition-colors;
+    background: hsl(var(--secondary));
+    color: hsl(var(--foreground));
+  }
+  .ref:hover {
+    border-color: hsl(var(--rubric));
+    color: hsl(var(--rubric));
+  }
+
+  .live-dot {
+    @apply relative inline-block h-2 w-2 rounded-full;
+    background: hsl(var(--rubric));
+  }
+  .live-dot::after {
+    content: "";
+    @apply absolute inset-0 rounded-full;
+    background: hsl(var(--rubric));
+    animation: ripple 1.8s ease-out infinite;
+  }
+
+  /* Long-form text written by the models: Markdown with mathematics. */
+  .prose-s {
+    @apply font-serif text-[1.08rem] leading-[1.62];
+    overflow-wrap: anywhere;
+  }
+  .prose-s > :first-child {
+    margin-top: 0;
+  }
+  .prose-s > :last-child {
+    margin-bottom: 0;
+  }
+  .prose-s p,
+  .prose-s ul,
+  .prose-s ol,
+  .prose-s blockquote,
+  .prose-s pre,
+  .prose-s table {
+    margin: 0.7em 0;
+  }
+  .prose-s h1 {
+    @apply mb-3 mt-8 text-[1.75rem] font-medium leading-tight;
+  }
+  .prose-s h2 {
+    @apply mb-2 mt-7 border-b pb-1 text-[1.38rem] font-medium leading-snug;
+    border-color: hsl(var(--rule));
+  }
+  .prose-s h3 {
+    @apply mb-1.5 mt-5 text-[1.14rem] font-semibold;
+  }
+  .prose-s h4 {
+    @apply rubric mb-1 mt-5;
+  }
+  .prose-s ul {
+    @apply list-disc pl-5;
+  }
+  .prose-s ol {
+    @apply list-decimal pl-5;
+  }
+  .prose-s li {
+    margin: 0.2em 0;
+  }
+  .prose-s li::marker {
+    color: hsl(var(--rubric));
+  }
+  .prose-s a {
+    color: hsl(var(--rubric));
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .prose-s strong {
+    font-weight: 620;
+  }
+  .prose-s blockquote {
+    @apply gloss italic text-muted-foreground;
+  }
+  .prose-s code {
+    @apply rounded-sm bg-secondary px-1 py-px font-mono text-[0.8em];
+  }
+  .prose-s pre {
+    @apply overflow-x-auto rounded border bg-card p-3 font-mono text-[0.8rem] leading-relaxed;
+  }
+  .prose-s pre code {
+    @apply bg-transparent p-0 text-[1em];
+  }
+  .prose-s table {
+    @apply block w-full overflow-x-auto font-sans text-[0.86rem];
+    border-collapse: collapse;
+  }
+  .prose-s th {
+    @apply border-b-2 px-2 py-1.5 text-left text-[0.74rem] font-semibold uppercase text-muted-foreground;
+    letter-spacing: 0.08em;
+  }
+  .prose-s td {
+    @apply border-b px-2 py-1.5 align-top;
+    font-variant-numeric: tabular-nums;
+  }
+  .prose-s tbody tr:hover td {
+    background: hsl(var(--secondary) / 0.45);
+  }
+  .prose-s hr {
+    @apply my-6;
+    border-color: hsl(var(--rule));
+  }
+  .prose-s .katex-display {
+    @apply overflow-x-auto overflow-y-hidden py-1;
+    margin: 1em 0;
+  }
+  .prose-s.compact {
+    @apply text-[0.98rem] leading-[1.55];
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .rise {
+    animation: rise 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  /* Children arrive one after another, like lines being written. */
+  .stagger > * {
+    animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: calc(var(--i, 12) * 45ms);
+  }
+  .stagger > :nth-child(1) {
+    --i: 0;
+  }
+  .stagger > :nth-child(2) {
+    --i: 1;
+  }
+  .stagger > :nth-child(3) {
+    --i: 2;
+  }
+  .stagger > :nth-child(4) {
+    --i: 3;
+  }
+  .stagger > :nth-child(5) {
+    --i: 4;
+  }
+  .stagger > :nth-child(6) {
+    --i: 5;
+  }
+  .stagger > :nth-child(7) {
+    --i: 6;
+  }
+  .stagger > :nth-child(8) {
+    --i: 7;
+  }
+  .stagger > :nth-child(9) {
+    --i: 8;
+  }
+  .stagger > :nth-child(10) {
+    --i: 9;
+  }
+  .stagger > :nth-child(11) {
+    --i: 10;
+  }
+  .stagger > :nth-child(12) {
+    --i: 11;
+  }
+  .press {
+    @apply active:scale-[0.98];
+    transition:
+      transform 0.16s ease,
+      background-position 0.7s ease,
+      color 0.15s ease,
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      opacity 0.15s ease;
+  }
+  .press:disabled {
+    transform: none;
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(3.2);
+    opacity: 0;
+  }
+}
+
+@keyframes draw-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes draw-y {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes slide {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -8px;
+  }
+}
+
+@keyframes reveal {
+  to {
+    clip-path: inset(-40% 0 -40% 0);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Printing gives the PDF export: only the report, on white, in ink. */
+.print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 22mm 20mm;
+  }
+  html {
+    font-size: 11pt;
+  }
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  /* The report is printed from a copy placed directly in the page; the app itself is left out. */
+  body.printing-report #root {
+    display: none !important;
+  }
+  body.printing-report .print-sheet {
+    display: block !important;
+  }
+  body.printing-report .ref {
+    border: 0;
+    background: none;
+    padding: 0;
+    font-weight: 600;
+  }
+  .print-root {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .prose-s pre,
+  .prose-s table,
+  .prose-s .katex-display {
+    break-inside: avoid;
+    overflow: visible;
+    white-space: pre-wrap;
+  }
+}

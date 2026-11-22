@@ -1,0 +1,6 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-rrTTfQKtJkcGtXS/ujgR86PY2bPvstuiZu/0/JuxhJQ=' 'sha256-RSJAEwtS4cU5+jwsbadrfn6vn6sBTmxaVOMV2r23zJ0='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.googleusercontent.com; font-src 'self' data:; connect-src 'self' https://api.rork.com wss://*.rork.live wss://*.rork.app; worker-src 'self' blob:; frame-ancestors 'self' https://rork.com https://*.rork.com; base-uri 'self'; form-action 'self'; object-src 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  X-Robots-Tag: noindex, nofollow

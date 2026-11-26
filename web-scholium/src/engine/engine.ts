@@ -108,6 +108,8 @@ export const MAX_UPLOAD_BYTES = 12_000_000;
 export const MAX_UPLOADS = 40;
 export { AGENT_TERMINAL, LEAD_TASKS, TERMINAL };
 const PRIORITY: Record<string, number> = { subagent: 0, subagent_review: 1 };
+/** How long a lead keeps its place at the front after receiving an instruction, so that it can act on it. */
+const INSTRUCTION_HEAD_MS = 30 * 60000;
 const PREFLIGHT_TOOLS = ["web", "literature", "oeis", "sage", "lean"] as const;
 type ToolName = "web" | "literature" | "oeis" | "sandbox" | "sage" | "lean";
 
@@ -1337,10 +1339,29 @@ export class Engine {
     });
   }
 
+  /**
+   * Leads whose own task goes ahead of subagent work: those the user has instructed and who have not received
+   * the instruction yet, or received it a short while ago. Without this a lead's task waits behind every
+   * subagent and review, and in a run with hundreds of subagents the instruction never reaches it.
+   */
+  private instructedLeads(now: number): Set<string> {
+    const out = new Set<string>();
+    for (const i of this.all("instruction")) {
+      if (i.status === "cancelled") continue;
+      for (const d of i.deliveries) if (now - d.at < INSTRUCTION_HEAD_MS) out.add(d.agentId);
+      if (i.status !== "queued") continue;
+      const want = i.target === "all" ? this.activeLeads().map((l) => l.id) : [i.target];
+      for (const id of want) if (!i.deliveries.some((d) => d.agentId === id)) out.add(id);
+    }
+    return out;
+  }
+
   private candidates(now: number): Task[] {
+    const first = this.instructedLeads(now);
+    const rank = (t: Task): number => (first.size && LEAD_TASKS.has(t.type) && first.has(t.agentId) ? -1 : (PRIORITY[t.type] ?? 2));
     return this.all("task")
       .filter((t) => (t.status === "queued" || t.status === "running") && !this.inFlight.has(t.id) && (t.notBefore ?? 0) <= now && this.depsDone(t))
-      .sort((a, b) => (PRIORITY[a.type] ?? 2) - (PRIORITY[b.type] ?? 2) || a.createdAt - b.createdAt);
+      .sort((a, b) => rank(a) - rank(b) || a.createdAt - b.createdAt);
   }
 
   private dispatch(): void {

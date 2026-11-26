@@ -536,6 +536,32 @@ describe("the instruction queue", () => {
     expect(JSON.stringify(last.messages)).toContain("Also record the smallest prime used for each n.");
   });
 
+  it("a lead with an instruction waiting goes ahead of subagent work, so a busy run cannot hold the instruction back", async () => {
+    const h = makeHarness();
+    h.llm.script = cooperative(h);
+    await h.eng.action("start");
+    await h.drain({ until: (x) => x.eng.run.phase === "work" && x.llm.requests.length >= 6, max: 80 });
+    const lead = h.eng.all("task").find((t) => t.type === "work")!;
+    lead.status = "queued";
+    lead.waiting = undefined;
+    lead.notBefore = undefined;
+    h.eng.put("task", lead);
+    // A backlog of subagent work, all of it older than the lead's task.
+    for (let k = 0; k < 40; k++) h.eng.put("task", { ...structuredClone(lead), id: `TB${k}`, type: k % 2 ? "subagent" : "subagent_review", status: "queued", deps: [], createdAt: lead.createdAt - 1000 + k });
+    const order = (): string[] => (h.eng as unknown as { candidates(now: number): { id: string }[] }).candidates(h.eng.now()).map((t) => t.id);
+    expect(order().indexOf(lead.id)).toBeGreaterThanOrEqual(40);
+    const r = h.eng.addInstruction("Stop and summarise.", lead.agentId);
+    expect(r.ok).toBe(true);
+    expect(order()[0]).toBe(lead.id);
+    // Still first just after delivery, so the lead can act on it; back in line once that time has passed.
+    const ins = h.eng.m.instruction.get(r.id!)!;
+    h.eng.markDelivered(ins, h.eng.m.agent.get(lead.agentId)!, lead);
+    expect(ins.status).toBe("delivered");
+    expect(order()[0]).toBe(lead.id);
+    ins.deliveries[0].at -= 31 * 60000;
+    expect(order().indexOf(lead.id)).toBeGreaterThanOrEqual(40);
+  });
+
   it("an instruction for a single lead is not shown to the other", async () => {
     const h = makeHarness();
     h.llm.script = cooperative(h);

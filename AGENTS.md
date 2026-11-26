@@ -39,3 +39,6 @@ rork env run -e production -- bun web-scholium/scripts/preflight.ts https://<pub
   "Nothing is missing") and ask the owner to sign in on the **published** address and press
   **Continue here**.
 - You cannot see behind sign-in. Say so, and say what only the owner can confirm.
+- The project is large and the server has 128 MB. If the owner sees "Can't open project" and the
+  logs say "Worker exceeded memory limit.", read that entry under "When something is not as
+  described" in `README.md`. Never delete or trim research to make it fit.

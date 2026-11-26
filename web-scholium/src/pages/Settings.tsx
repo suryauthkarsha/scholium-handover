@@ -427,7 +427,7 @@ function Allowance({ u }: { u: UsageView }) {
       </div>
       {u.blocked && <p className="gloss">{u.blocked}</p>}
       <p className="max-w-2xl text-muted-foreground">
-        The server's storage has a free daily allowance ({u.day}, UTC). Runs are paused at {Math.round(u.pauseAt * 100)}% of it and can be resumed the next day. The allowance is a limit, not a bill: past it the server refuses work until the next day. Today: {u.takes.email} of {u.takes.caps.email} emails, {u.takes.drive} of{" "}
+        The server's storage has a free daily allowance ({u.day}, UTC). Runs do not pause themselves as it runs low. The allowance is a limit, not a bill: past it the server may refuse work until the next day. Today: {u.takes.email} of {u.takes.caps.email} emails, {u.takes.drive} of{" "}
         {u.takes.caps.drive} Drive uploads.
       </p>
     </div>

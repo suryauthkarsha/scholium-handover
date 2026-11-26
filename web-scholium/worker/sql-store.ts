@@ -49,6 +49,14 @@ export class SqlStore implements Store, Source {
     return rows;
   }
 
+  /** Hands over a query's rows one at a time, so a long result is never held whole in memory. */
+  private each(query: string, bindings: unknown[], fn: (r: Row) => void): void {
+    const cursor = this.storage.sql.exec(query, ...bindings);
+    for (const r of cursor) fn(r as Row);
+    this.read += cursor.rowsRead;
+    this.written += cursor.rowsWritten;
+  }
+
   private putParts(table: "ent" | "txt", where: string, keys: unknown[], text: string, size: number): void {
     const n = Math.max(1, Math.ceil(text.length / size));
     for (let i = 0; i < n; i++) this.q(`INSERT OR REPLACE INTO ${table} VALUES (${keys.map(() => "?").join(",")}, ?, ?)`, ...keys, i, text.slice(i * size, (i + 1) * size));
@@ -66,7 +74,7 @@ export class SqlStore implements Store, Source {
         // A row that cannot be parsed is skipped rather than stopping the run from loading.
       }
     };
-    for (const r of this.q("SELECT kind, id, data FROM ent ORDER BY kind, id, part")) {
+    this.each("SELECT kind, id, data FROM ent ORDER BY kind, id, part", [], (r) => {
       const kind = String(r.kind);
       const id = String(r.id);
       if (cur && cur.kind === kind && cur.id === id) cur.text += String(r.data);
@@ -74,7 +82,7 @@ export class SqlStore implements Store, Source {
         push();
         cur = { kind, id, text: String(r.data) };
       }
-    }
+    });
     push();
     return out;
   }
@@ -101,7 +109,7 @@ export class SqlStore implements Store, Source {
         out.push({ role: "user", text: "[A stored message could not be read back.]", origin: "system" });
       }
     };
-    for (const r of this.q("SELECT idx, data FROM msg WHERE task = ? ORDER BY idx, part", taskId)) {
+    this.each("SELECT idx, data FROM msg WHERE task = ? ORDER BY idx, part", [taskId], (r) => {
       const i = Number(r.idx);
       if (i === idx) text += String(r.data);
       else {
@@ -109,7 +117,7 @@ export class SqlStore implements Store, Source {
         idx = i;
         text = String(r.data);
       }
-    }
+    });
     push();
     return out;
   }
@@ -147,6 +155,31 @@ export class SqlStore implements Store, Source {
     this.dirty?.mark("txt", ref);
     if (!text) this.q("DELETE FROM txt WHERE ref = ?", ref);
     else this.putParts("txt", "ref = ?", [ref], text, TEXT_CHUNK);
+  }
+
+  /** Keeps a text handed over in pieces, stored exactly as putText stores the whole, without ever holding the whole. */
+  putTextFrom(ref: string, pieces: Iterable<string>): void {
+    this.dirty?.mark("txt", ref);
+    let buf = "";
+    let n = 0;
+    for (const p of pieces) {
+      buf += p;
+      while (buf.length >= TEXT_CHUNK) {
+        this.q("INSERT OR REPLACE INTO txt VALUES (?, ?, ?)", ref, n++, buf.slice(0, TEXT_CHUNK));
+        buf = buf.slice(TEXT_CHUNK);
+      }
+    }
+    if (buf) this.q("INSERT OR REPLACE INTO txt VALUES (?, ?, ?)", ref, n++, buf);
+    this.q("DELETE FROM txt WHERE ref = ? AND part >= ?", ref, n);
+  }
+
+  /** A stored text, one stored part at a time. Each part is its own complete read. */
+  *textParts(ref: string): Generator<string> {
+    for (let part = 0; ; part++) {
+      const r = this.q("SELECT data FROM txt WHERE ref = ? AND part = ?", ref, part)[0];
+      if (!r) return;
+      yield String(r.data);
+    }
   }
 
   getText(ref: string): string | null {
@@ -298,8 +331,11 @@ export class SqlStore implements Store, Source {
     this.kvSet("vault:evSeq", seq);
   }
 
-  /** Writes one unit read back from the permanent store, without noting it as a change. */
-  rawPut(tbl: string, k: string, value: Value): void {
+  /**
+   * Writes one unit read back from the permanent store, without noting it as a change.
+   * A long text may come with the pieces it is made of, and is then kept without being joined up first.
+   */
+  rawPut(tbl: string, k: string, value: Value, pieces?: string[]): void {
     const held = this.dirty;
     this.dirty = null;
     try {
@@ -310,8 +346,10 @@ export class SqlStore implements Store, Source {
       else if (tbl === "msg") {
         const n = Math.max(1, Math.ceil(value.length / CHUNK));
         for (let i = 0; i < n; i++) this.q("INSERT OR REPLACE INTO msg VALUES (?, ?, ?, ?)", k.slice(0, cut), Number(k.slice(cut + 1)), i, value.slice(i * CHUNK, (i + 1) * CHUNK));
-      } else if (tbl === "txt") this.putParts("txt", "ref = ?", [k], value, TEXT_CHUNK);
-      else if (tbl === "kv") {
+      } else if (tbl === "txt") {
+        if (pieces && value) this.putTextFrom(k, pieces);
+        else this.putParts("txt", "ref = ?", [k], value, TEXT_CHUNK);
+      } else if (tbl === "kv") {
         if (!local(k)) this.q("INSERT OR REPLACE INTO kv VALUES (?, ?)", k, value);
       } else if (tbl === "ev") this.q("INSERT OR REPLACE INTO ev VALUES (?, ?)", Number(k), value);
     } finally {

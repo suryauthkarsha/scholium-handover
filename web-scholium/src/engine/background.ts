@@ -1,5 +1,5 @@
 // Work that happens beside the research itself: checkpoints, email alerts, Google Drive copies and tool health checks.
-import { LEDGER_KINDS, type Checkpoint, type EmailLog, type EntityKind, type Phase, type RunConfig, type Snapshot } from "../shared/types";
+import { ENTITY_KINDS, LEDGER_KINDS, type Checkpoint, type EmailLog, type EntityKind, type Phase, type RunConfig, type Snapshot } from "../shared/types";
 import { ALLOWED_EMAIL } from "../shared/gate";
 import type { Engine } from "./engine";
 import { buildDigest, buildReport, dataFrom, goalSummary, toLatex } from "./report";
@@ -28,6 +28,26 @@ const SANDBOX_RETRY_MS = 15 * 60000;
 const idNum = (id: string): number => Number(id.replace(/\D+/g, "")) || 0;
 
 // ---------- checkpoints ----------
+/** The text of JSON.stringify(exp), a piece at a time. */
+export function* checkpointText(exp: CheckpointExport): Generator<string> {
+  const { entities, ...rest } = exp;
+  const head = JSON.stringify(rest);
+  yield `${head.slice(0, -1)}${head.length > 2 ? "," : ""}"entities":{`;
+  let firstKind = true;
+  for (const [kind, list] of Object.entries(entities as Record<string, unknown[] | undefined>)) {
+    if (list === undefined) continue;
+    yield `${firstKind ? "" : ","}${JSON.stringify(kind)}:[`;
+    firstKind = false;
+    let first = true;
+    for (const e of list) {
+      yield `${first ? "" : ","}${JSON.stringify(e) ?? "null"}`;
+      first = false;
+    }
+    yield "]";
+  }
+  yield "}}";
+}
+
 export function checkpoint(eng: Engine, reason: string): void {
   const r = eng.run;
   const now = eng.now();
@@ -38,8 +58,21 @@ export function checkpoint(eng: Engine, reason: string): void {
   for (const k of LEDGER_KINDS) entities[k] = (snap[k] as unknown[] | undefined) ?? [];
   const counters: Record<string, number> = {};
   for (const k of LEDGER_COUNTERS) counters[k] = r.counters[k] ?? 0;
-  const exp: CheckpointExport = { runId: r.id, checkpointId: id, cycle: r.cycle, phase: r.phase, at: now, title: r.config.title, config: r.config, counters, entities: entities as Snapshot };
-  eng.store.putText(`ckpt:${id}`, JSON.stringify(exp));
+  const exp: CheckpointExport = {
+    runId: r.id,
+    checkpointId: id,
+    cycle: r.cycle,
+    phase: r.phase,
+    at: now,
+    title: r.config.title,
+    config: r.config,
+    counters,
+    entities: entities as Snapshot,
+  };
+  // A long project's checkpoint is tens of millions of characters: it is written out record by record, giving
+  // exactly the text JSON.stringify(exp) gives, without that whole text ever being held in memory.
+  if (eng.store.putTextFrom) eng.store.putTextFrom(`ckpt:${id}`, checkpointText(exp));
+  else eng.store.putText(`ckpt:${id}`, JSON.stringify(exp));
   const cp: Checkpoint = {
     id,
     cycle: r.cycle,
@@ -74,7 +107,13 @@ export interface BackupFile {
   scholiumBackup: 1;
   owner: string;
   exportedAt: string;
-  run: { id: string; title: string; status: string; cycle: number; spendUsd: number };
+  run: {
+    id: string;
+    title: string;
+    status: string;
+    cycle: number;
+    spendUsd: number;
+  };
   checkpoint: CheckpointExport;
   /** Stored source texts by source id. */
   texts: Record<string, string>;
@@ -115,7 +154,17 @@ export function liveExport(eng: Engine): CheckpointExport {
   for (const k of LEDGER_KINDS) entities[k] = (snap[k] as unknown[] | undefined) ?? [];
   const counters: Record<string, number> = {};
   for (const k of LEDGER_COUNTERS) counters[k] = r.counters[k] ?? 0;
-  return { runId: r.id, checkpointId: "backup", cycle: r.cycle, phase: r.phase, at: eng.now(), title: r.config.title, config: r.config, counters, entities: entities as Snapshot };
+  return {
+    runId: r.id,
+    checkpointId: "backup",
+    cycle: r.cycle,
+    phase: r.phase,
+    at: eng.now(),
+    title: r.config.title,
+    config: r.config,
+    counters,
+    entities: entities as Snapshot,
+  };
 }
 
 export function buildBackup(eng: Engine): BackupFile {
@@ -151,11 +200,20 @@ export function buildBackup(eng: Engine): BackupFile {
     scholiumBackup: 1,
     owner: ALLOWED_EMAIL,
     exportedAt: new Date(eng.now()).toISOString(),
-    run: { id: r.id, title: r.config.title, status: r.status, cycle: r.cycle, spendUsd: r.spend.usd },
+    run: {
+      id: r.id,
+      title: r.config.title,
+      status: r.status,
+      cycle: r.cycle,
+      spendUsd: r.spend.usd,
+    },
     checkpoint: liveExport(eng),
     texts,
     files,
-    report: buildReport(dataFrom(eng.snapshot()), { now: eng.now(), full: true }),
+    report: buildReport(dataFrom(eng.snapshot()), {
+      now: eng.now(),
+      full: true,
+    }),
     omitted,
   };
   const snap = eng.publicSnapshot();
@@ -165,7 +223,11 @@ export function buildBackup(eng: Engine): BackupFile {
 }
 
 /** Reads the restorable part of a backup file. Null when it is not one. */
-export function readBackup(v: unknown): { checkpoint: CheckpointExport; texts: Record<string, string>; files: Record<string, string> } | null {
+export function readBackup(v: unknown): {
+  checkpoint: CheckpointExport;
+  texts: Record<string, string>;
+  files: Record<string, string>;
+} | null {
   const obj = (x: unknown): Record<string, unknown> | null => (x && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, unknown>) : null);
   const a = obj(v);
   const cp = obj(a?.checkpoint);
@@ -180,7 +242,17 @@ export function readBackup(v: unknown): { checkpoint: CheckpointExport; texts: R
     for (const [k, val] of Object.entries(obj(x) ?? {})) if (typeof val === "string" && val && /^[A-Za-z0-9_-]{1,64}$/.test(k)) o[k] = val;
     return o;
   };
-  return { checkpoint: { ...(cp as unknown as CheckpointExport), checkpointId: "backup", at: typeof cp.at === "number" ? cp.at : 0, title: typeof cp.title === "string" ? cp.title : "", runId: typeof cp.runId === "string" ? cp.runId : "" }, texts: strings(a.texts), files: strings(a.files) };
+  return {
+    checkpoint: {
+      ...(cp as unknown as CheckpointExport),
+      checkpointId: "backup",
+      at: typeof cp.at === "number" ? cp.at : 0,
+      title: typeof cp.title === "string" ? cp.title : "",
+      runId: typeof cp.runId === "string" ? cp.runId : "",
+    },
+    texts: strings(a.texts),
+    files: strings(a.files),
+  };
 }
 
 export function exportCheckpoint(eng: Engine, id: string): CheckpointExport | null {
@@ -267,7 +339,15 @@ export function notify(eng: Engine, kind: EmailLog["kind"]): void {
       eng.run.counters[key] = 1;
       eng.touch();
     }
-    const log: EmailLog = { id: eng.id("M"), kind, to: mask(res.to), subject: msg.subject, status: res.status, detail: res.detail ? clip(res.detail, 400) : undefined, at: eng.now() };
+    const log: EmailLog = {
+      id: eng.id("M"),
+      kind,
+      to: mask(res.to),
+      subject: msg.subject,
+      status: res.status,
+      detail: res.detail ? clip(res.detail, 400) : undefined,
+      at: eng.now(),
+    };
     eng.put("email", log);
     if (res.status === "sent") eng.event("info", "email", `Email sent to ${log.to}: "${msg.subject}".`, undefined, log.id);
     else eng.event("warn", "email", `Email "${msg.subject}" was ${res.status === "skipped" ? "not sent" : "not delivered"}: ${oneLine(res.detail, 300)}`, undefined, log.id);
@@ -275,11 +355,19 @@ export function notify(eng: Engine, kind: EmailLog["kind"]): void {
 }
 
 // ---------- Google Drive ----------
-interface OutFile {
+export interface OutFile {
   name: string;
   mime: string;
-  content: string;
+  /** Builds the text when it is this file's turn, so that only one file's text is held at a time. */
+  /** Null when the text has grown too large to build here: the file is left as it is in Drive. */
+  make(): string | null;
 }
+
+/**
+ * The most text (in characters) that the report's experiment listings, or the ledger, may hold and still be built as one file.
+ * The site has 128 MB for everything, and building a larger text in one piece does not fit beside the open project.
+ */
+export const DRIVE_TEXT_BUDGET = 3_000_000;
 
 const safeName = (s: string): string =>
   s
@@ -288,25 +376,73 @@ const safeName = (s: string): string =>
     .trim()
     .slice(0, 100);
 
-function driveFiles(eng: Engine): OutFile[] {
+/** Whether `sizes` add up to more than the budget. Stops counting as soon as they do. */
+function over(sizes: Iterable<number>): boolean {
+  let n = 0;
+  for (const s of sizes) {
+    n += s;
+    if (n > DRIVE_TEXT_BUDGET) return true;
+  }
+  return false;
+}
+
+/**
+ * The files a pass copies to Drive. `slim` says the project has outgrown what can be built in one piece:
+ * the report then leaves out experiment code and output (each experiment's code is still its own file), and ledger.json is left out.
+ */
+export function driveFiles(eng: Engine): { files: OutFile[]; slim: boolean } {
   const r = eng.run;
   const title = r.config.title || "Scholium run";
-  const md = buildReport(dataFrom(eng.snapshot()), { now: eng.now(), full: true });
+  const bigReport = over(
+    (function* () {
+      for (const x of eng.m.experiment.values()) yield x.code.length + (x.stdout?.length ?? 0) + (x.stderr?.length ?? 0);
+      for (const l of eng.m.leancheck.values()) yield l.source.length;
+    })(),
+  );
+  const bigLedger =
+    bigReport ||
+    over(
+      (function* () {
+        for (const kind of ENTITY_KINDS) for (const e of eng.m[kind].values()) yield JSON.stringify(e)?.length ?? 0;
+      })(),
+    );
+  const report = (): string => buildReport(dataFrom(eng.snapshot()), { now: eng.now(), full: !bigReport });
   const out: OutFile[] = [
-    { name: "report.md", mime: "text/markdown", content: md },
-    { name: "report.tex", mime: "application/x-tex", content: toLatex(md, title) },
-    { name: "ledger.json", mime: "application/json", content: eng.export("json").content },
+    { name: "report.md", mime: "text/markdown", make: report },
+    {
+      name: "report.tex",
+      mime: "application/x-tex",
+      make: () => {
+        // Turning the report into LaTeX takes several times its size in memory.
+        const md = report();
+        return md.length > 2 * DRIVE_TEXT_BUDGET ? null : toLatex(md, title);
+      },
+    },
   ];
+  if (!bigLedger)
+    out.push({
+      name: "ledger.json",
+      mime: "application/json",
+      make: () => eng.export("json").content,
+    });
   for (const a of eng.all("artifact")) {
     if (a.kind === "report") continue;
-    out.push({ name: `artifact-${a.id}-${safeName(a.filename || a.title) || "file"}`, mime: "text/plain", content: a.content });
+    out.push({
+      name: `artifact-${a.id}-${safeName(a.filename || a.title) || "file"}`,
+      mime: "text/plain",
+      make: () => a.content,
+    });
   }
   for (const x of eng.all("experiment")) {
     if (!x.code.trim()) continue;
     const ext = x.lang === "python" ? "py" : x.lang === "sage" ? "sage" : "sh";
-    out.push({ name: `experiment-${x.id}.${ext}`, mime: "text/plain", content: x.code });
+    out.push({
+      name: `experiment-${x.id}.${ext}`,
+      mime: "text/plain",
+      make: () => x.code,
+    });
   }
-  return out;
+  return { files: out, slim: bigReport || bigLedger };
 }
 
 function driveDue(eng: Engine, now: number): boolean {
@@ -324,6 +460,9 @@ async function driveSync(eng: Engine): Promise<void> {
   const r = eng.run;
   const drive = eng.services.drive;
   let saved = 0;
+  // Marked as attempted before any work, so a pass that is cut short is not started again the moment the project reopens.
+  r.driveLastSyncAt = eng.now();
+  eng.touch();
   try {
     const st = await drive.status();
     if (!st.connected) throw new Error(st.detail || "Google Drive is not connected.");
@@ -337,8 +476,20 @@ async function driveSync(eng: Engine): Promise<void> {
     const folder = r.driveFolderId;
     let more = false;
     // The ledger export changes with every model call, so it is compared last and written at most once per pass.
-    for (const f of driveFiles(eng)) {
-      const hash = await sha256Hex(f.content);
+    const { files, slim } = driveFiles(eng);
+    if (slim !== !!r.counters.driveSlim) {
+      r.counters.driveSlim = slim ? 1 : 0;
+      if (slim)
+        eng.event(
+          "warn",
+          "drive",
+          "This project has grown too large for the complete report and ledger.json to be copied to Google Drive in one piece. From now on the report in Drive leaves out experiment code and output, and ledger.json is no longer updated there. Every artifact and every experiment's code is still copied, and the complete record stays in the permanent store.",
+        );
+    }
+    for (const f of files) {
+      const content = f.make();
+      if (content === null) continue;
+      const hash = await sha256Hex(content);
       const cur = eng.m.drivefile.get(f.name);
       if (cur && cur.hash === hash && cur.fileId && !cur.error) continue;
       if (saved >= DRIVE_FILES_PER_PASS) {
@@ -347,13 +498,19 @@ async function driveSync(eng: Engine): Promise<void> {
       }
       let fileId: string;
       try {
-        fileId = await drive.putFile(folder, f.name, f.mime, f.content, cur?.fileId);
+        fileId = await drive.putFile(folder, f.name, f.mime, content, cur?.fileId);
       } catch (e) {
         if (!cur?.fileId) throw e;
         // The file may have been deleted in Drive: write it again as a new file.
-        fileId = await drive.putFile(folder, f.name, f.mime, f.content);
+        fileId = await drive.putFile(folder, f.name, f.mime, content);
       }
-      eng.put("drivefile", { id: f.name, name: f.name, fileId, hash, syncedAt: eng.now() });
+      eng.put("drivefile", {
+        id: f.name,
+        name: f.name,
+        fileId,
+        hash,
+        syncedAt: eng.now(),
+      });
       saved++;
     }
     r.counters.driveMore = more ? 1 : 0;

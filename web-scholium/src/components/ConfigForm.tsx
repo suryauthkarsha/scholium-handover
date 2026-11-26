@@ -211,7 +211,7 @@ export function LimitFields({ config, onChange, disabled, availableUsd }: FormPr
         <ToggleRow
           title="Keep working until the spending limit is reached"
           note="The working-time and cycle limits below are not applied. The run goes on, cycle after cycle, until the goal is reached, the spending limit is used up, or you stop it."
-          warn={l.untilSpend ? "It still pauses and asks you if every lead reports no progress two cycles in a row, or if today's free backend allowance runs low." : undefined}
+          warn={l.untilSpend ? "It still pauses and asks you if every lead reports no progress two cycles in a row." : undefined}
           checked={l.untilSpend}
           onChange={(untilSpend) => set({ untilSpend })}
           disabled={disabled}

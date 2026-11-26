@@ -554,8 +554,6 @@ export class Workspace extends DurableObject<Env> {
       return key ? json({ key }) : fail(409, "not_configured", "The permanent store is not set up on this copy, so there is nothing to move yet.");
     }
     if (path === "/internal/grant") {
-      const blocked = B.allowanceBlocked(this.s.usage, now);
-      if (blocked) return json({ ok: false, reason: blocked });
       const g = B.grant(this.s.budget, String(b.runId ?? ""), { limitUsd: Number(b.limitUsd) || 0, spentUsd: Number(b.spentUsd) || 0, reservedUsd: Number(b.reservedUsd) || 0 }, now);
       this.save("budget", true);
       return json(g);
@@ -573,8 +571,8 @@ export class Workspace extends DurableObject<Env> {
       B.addUsage(this.s.usage, { written: Number(u.written) || 0, read: Number(u.read) || 0, calls: Number(u.calls) || 0 }, now);
       const r = B.report(this.s.budget, sum.id, { limitUsd: Number(l.limitUsd) || 0, spentUsd: Number(l.spentUsd) || 0, reservedUsd: Number(l.reservedUsd) || 0, active: l.active === true }, now);
       this.save("budget");
-      const blocked = l.active === true ? B.allowanceBlocked(this.s.usage, now) : null;
-      return json({ ...r, pause: blocked ?? undefined });
+      // The owner's choice: runs no longer pause themselves when the free daily allowance runs low.
+      return json(r);
     }
     if (path === "/internal/take") {
       const k = String(b.kind ?? "");

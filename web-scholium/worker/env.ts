@@ -90,6 +90,45 @@ export function withMoveKey(env: Env): Env {
 export const INTERNAL = "https://scholium.internal";
 
 export const json = (body: unknown, status = 200): Response => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8" } });
+/** The text of JSON.stringify({ entities, events }), a piece at a time, so a long project's state is never held whole as text. */
+export function* snapshotText(entities: Record<string, unknown[] | undefined>, events: unknown[]): Generator<string> {
+  yield '{"entities":{';
+  let firstKind = true;
+  for (const [kind, list] of Object.entries(entities)) {
+    if (list === undefined) continue;
+    yield `${firstKind ? "" : ","}${JSON.stringify(kind)}:[`;
+    firstKind = false;
+    let first = true;
+    for (const e of list) {
+      yield `${first ? "" : ","}${JSON.stringify(e) ?? "null"}`;
+      first = false;
+    }
+    yield "]";
+  }
+  yield `},"events":${JSON.stringify(events)}}`;
+}
+
+/** A JSON answer sent as it is written, a few hundred thousand characters at a time. */
+export function jsonStream(pieces: Iterator<string>, status = 200): Response {
+  const enc = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      let buf = "";
+      while (buf.length < 250_000) {
+        const r = pieces.next();
+        if (r.done) {
+          if (buf) controller.enqueue(enc.encode(buf));
+          controller.close();
+          return;
+        }
+        buf += r.value;
+      }
+      controller.enqueue(enc.encode(buf));
+    },
+  });
+  return new Response(body, { status, headers: { "content-type": "application/json; charset=utf-8" } });
+}
+
 export const fail = (status: number, error: string, message: string): Response => json({ error, message }, status);
 export const notFound = (): Response => fail(404, "not_found", "There is nothing at this address.");
 export const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});

@@ -234,5 +234,5 @@ export function usageView(u: DailyUsage, t: TakeCounters, now: number): UsageVie
   const today = dayOf(now);
   const cur = u.day === today ? u : newUsage(now);
   const tk = t.day === today ? t : { day: today, email: 0, drive: 0 };
-  return { ...cur, allowance: { ...DO_DAILY_ALLOWANCE }, pauseAt: ALLOWANCE_PAUSE_AT, blocked: allowanceBlocked(cur, now), takes: { email: tk.email, drive: tk.drive, caps: { ...DAILY_TAKE_CAPS } } };
+  return { ...cur, allowance: { ...DO_DAILY_ALLOWANCE }, pauseAt: ALLOWANCE_PAUSE_AT, blocked: null, takes: { email: tk.email, drive: tk.drive, caps: { ...DAILY_TAKE_CAPS } } };
 }

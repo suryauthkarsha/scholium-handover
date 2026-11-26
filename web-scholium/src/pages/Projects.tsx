@@ -205,7 +205,7 @@ export default function Projects() {
               show={(v) => `${Math.round(v * 100)}%`}
               note={
                 u.blocked ??
-                `Runs pause themselves at ${Math.round(u.pauseAt * 100)}% so the free allowance is never exceeded.`
+                "Runs do not pause themselves as it runs low; past it the server may refuse work until the next day."
               }
             >
               <Meter

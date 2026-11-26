@@ -11,7 +11,7 @@ import { errText, fmtUsd } from "../src/engine/util";
 import { WS_TICKET_TTL_MS } from "../src/shared/gate";
 import { OLD_SITES, oldSitePass } from "../src/shared/oldSite";
 import { ENTITY_KINDS, type EntityKind, type RunSummary, type ServerMsg } from "../src/shared/types";
-import { callObject, type Env, fail, fromInside, json, notFound, readBody, rec, withMoveKey } from "./env";
+import { callObject, type Env, fail, fromInside, json, jsonStream, notFound, readBody, rec, snapshotText, withMoveKey } from "./env";
 import { SqlStore } from "./sql-store";
 import { type Cursor, Dirty, dropObject, hasRows, type Lease, Mirror, newTally, restore, sameValue, type Tally, vaultOn } from "./vault";
 import { STANDBY } from "./workspace-do";
@@ -235,7 +235,7 @@ export class ResearchRun extends DurableObject<Env> {
         this.store.transaction(() => {
           if (first) this.store.wipe();
           first = false;
-          for (const u of units) this.store.rawPut(u.tbl, u.k, u.value);
+          for (const u of units) this.store.rawPut(u.tbl, u.k, u.value, u.pieces);
           n += units.length;
           this.store.kvSet("vault:restoring", { ...cursor, epoch, n, id: this.runId, owner: this.owner, w: true } satisfies Restoring);
         }),
@@ -747,7 +747,8 @@ export class ResearchRun extends DurableObject<Env> {
       if (path === "/internal/vault/check") return this.checkStore(q("at"));
       if (path === "/internal/exists") return json({ ok: true });
       if (path === "/internal/backup") return json(buildBackup(e));
-      if (path === "/internal/snapshot") return json({ entities: e.publicSnapshot(), events: this.store.loadEvents(300) });
+      // The same answer as before, sent as it is written: a long project's state as one text does not fit in memory.
+      if (path === "/internal/snapshot") return jsonStream(snapshotText(e.publicSnapshot() as Record<string, unknown[]>, this.store.loadEvents(300)));
       if (path === "/internal/calls") return json({ calls: e.calls() });
       if (path === "/internal/text") {
         const text = e.text(q("ref").slice(0, 200));

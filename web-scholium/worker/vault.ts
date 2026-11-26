@@ -127,6 +127,30 @@ export async function encode(value: Value): Promise<string[]> {
   return out;
 }
 
+/**
+ * The same as encode for a text handed over in pieces: the pieces that come out are exactly those encode gives
+ * for the whole text, but the whole text is never held in memory. Null when there is no text at all.
+ */
+export async function encodeFrom(chunks: Iterable<string>): Promise<string[] | null> {
+  const out: string[] = [];
+  let buf = "";
+  let any = false;
+  for (const c of chunks) {
+    any = true;
+    buf += c;
+    // More text follows whatever is cut here, so the rule about not cutting a character in half applies as in encode.
+    while (buf.length > PART) {
+      let end = PART;
+      if (buf.charCodeAt(end - 1) >= 0xd800 && buf.charCodeAt(end - 1) <= 0xdbff) end--;
+      out.push(await encodePiece(buf.slice(0, end)));
+      buf = buf.slice(end);
+    }
+  }
+  if (!any) return null;
+  if (buf || !out.length) out.push(await encodePiece(buf));
+  return out;
+}
+
 async function decodePiece(p: string): Promise<string> {
   const tag = p[0];
   if (tag === "r") return p.slice(1);
@@ -191,6 +215,12 @@ export class Dirty {
     return this.sql("SELECT 1 AS x FROM vdirty WHERE tbl = ? AND k = ? LIMIT 1", tbl, k).length > 0;
   }
 
+  /** True while the note taken for this unit is still the latest one: nothing has changed it since it was taken. */
+  still(u: Unit): boolean {
+    const r = this.sql("SELECT g FROM vdirty WHERE tbl = ? AND k = ?", u.tbl, u.k)[0];
+    return !!r && Number(r.g) === u.g;
+  }
+
   reset(): void {
     this.sql("DELETE FROM vdirty");
     this.seen.clear();
@@ -200,6 +230,8 @@ export class Dirty {
 export interface Source {
   /** The whole current value of one unit, or null when it no longer exists. */
   unit(tbl: string, k: string): Value | null;
+  /** A stored text one part at a time, for texts too long to hold whole. Nothing is handed over when it no longer exists. */
+  textParts?(ref: string): Iterable<string>;
   /** Activity events after a sequence number, oldest first. Events are only ever added, so a mark is enough. */
   events?(after: number, limit: number): { seq: number; data: string }[];
   eventMark?(): number;
@@ -266,12 +298,18 @@ export class Mirror {
         };
         try {
           for (const u of units) {
-            const value = this.src.unit(u.tbl, u.k);
-            del.push({ tbl: u.tbl, k: u.k });
-            if (value !== null) {
-              const parts = await encode(value);
-              for (let i = 0; i < parts.length; i++) await add({ tbl: u.tbl, k: `${u.k}\t${pad(i, 5)}`, v: parts[i] });
+            let parts: string[] | null;
+            if (u.tbl === "txt" && this.src.textParts) {
+              // A long text (a checkpoint is tens of millions of characters) is read and packed a part at a time.
+              parts = await encodeFrom(this.src.textParts(u.k));
+              // Changed while it was being read: leave it noted, and it is read afresh on the next round.
+              if (!this.dirty.still(u)) continue;
+            } else {
+              const value = this.src.unit(u.tbl, u.k);
+              parts = value !== null ? await encode(value) : null;
             }
+            del.push({ tbl: u.tbl, k: u.k });
+            if (parts) for (let i = 0; i < parts.length; i++) await add({ tbl: u.tbl, k: `${u.k}\t${pad(i, 5)}`, v: parts[i] });
             finished.push(u);
           }
           let top = mark;
@@ -322,6 +360,8 @@ export interface StoredUnit {
   tbl: string;
   k: string;
   value: Value;
+  /** For a text: the same text as the pieces it was stored in, so a long one can be kept without being joined up first. */
+  pieces?: string[];
 }
 export interface Cursor {
   tbl: string;
@@ -358,7 +398,18 @@ export async function restore(env: Env, obj: string, onPage: (units: StoredUnit[
     let pageSafe = safe;
     const close = async (): Promise<void> => {
       if (cur) {
-        out.push({ tbl: cur.tbl, k: cur.k, value: await decode(cur.parts) });
+        if (cur.parts[0]?.startsWith("x")) out.push({ tbl: cur.tbl, k: cur.k, value: await decode(cur.parts) });
+        else {
+          // As decode does, keeping hold of the pieces as well.
+          const pieces: string[] = [];
+          let value = "";
+          for (const p of cur.parts) {
+            const piece = await decodePiece(p);
+            pieces.push(piece);
+            value += piece;
+          }
+          out.push({ tbl: cur.tbl, k: cur.k, value, pieces });
+        }
         pageSafe = last;
       }
       cur = null;

@@ -29,6 +29,8 @@ export interface Store {
   appendEvent(e: ActivityEvent): void;
   loadEvents(limit: number): ActivityEvent[];
   putText(ref: string, text: string): void;
+  /** The same as putText for a long text handed over in pieces. A store without it is given the whole text. */
+  putTextFrom?(ref: string, pieces: Iterable<string>): void;
   getText(ref: string): string | null;
   putBlob(ref: string, bytes: Uint8Array): void;
   getBlob(ref: string): Uint8Array | null;

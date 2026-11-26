@@ -9,6 +9,23 @@ file before you touch anything.** The short version is at the top; the rest expl
 
 ---
 
+## The prompt the owner pastes
+
+The owner starts every move by pasting this, and only this, into a new Rork account. It can be
+used any number of times; each move carries on from the last saved letter and number.
+
+```text
+Clone https://github.com/suryauthkarsha/scholium-handover, read AGENTS.md and README.md in full
+and follow them exactly. Publish the Scholium site (web-scholium/) unchanged as a web app: do
+not rebuild, redesign, create a database or write to the store. Ask me for one thing only,
+SCHOLIUM_MOVE_KEY, through the secrets form. Use this account's own Rork AI for the models
+(never set MODEL_ACCOUNT_KEY). Finish with preflight.ts ending in "Ready" and check-store.ts
+ending in "Nothing is missing", then give me the published address so I can sign in and press
+"Continue here".
+```
+
+---
+
 ## The short version
 
 1. The **work is not in this repository.** Every project, agent, subagent, objective, finding,
@@ -29,7 +46,7 @@ file before you touch anything.** The short version is at the top; the rest expl
 You do not rebuild, redesign, re-create a database, or re-enter any research. If you find
 yourself writing code, stop: something in the steps below was skipped.
 
-This has been done for real once (22 November 2026, see the end of this file). The whole job,
+This has been done for real twice (22 and 25 November 2026, see the end of this file). The whole job,
 in order, is one question, eight commands and one press:
 
 ```bash
@@ -379,12 +396,22 @@ Where things are in the code:
 - **Projects pause by themselves with a note about the daily allowance.** This is the hosting
   platform's limit, not the site's: each Rork project gets, per day, 100,000 records written,
   5,000,000 read and 100,000 calls on its server storage, counted afresh at 00:00 UTC (05:30 in
-  India). A busy project writes roughly 40,000 to 50,000 records an hour. The site stops by
-  itself at 95% (`ALLOWANCE_PAUSE_AT` in `web-scholium/src/shared/budget.ts`) so that what is in
-  flight can still be saved to the permanent store; past 100% the platform refuses writes and
-  nothing can be saved until the reset. Projects carry on by themselves after the reset. Check
-  the count with `rork backend usage`. The counter belongs to the copy, so a fresh account
-  starts full. Do not raise 95% to 100%: the margin is what protects saving.
+  India). A busy project writes roughly 40,000 to 50,000 records an hour. Since 25 November
+  2026 the site no longer stops itself before that limit (the owner asked for the stop to be
+  removed); past it the platform may pause the server until the reset, and projects carry on by
+  themselves afterwards. Check the count with `rork backend usage`. The counter belongs to the
+  copy, so a fresh account starts full. "Continue here" itself writes the whole project once
+  (about 90,000 records for the project as it was on 25 November), so press it early in the UTC
+  day, and do not move the turn back and forth.
+- **"Can't open project", and `rork logs --source cloudflare --errors` shows "Worker exceeded
+  memory limit." again and again.** The server has 128 MB for everything, and the project is
+  large (see "State at the last handover check"). Something is building the whole project, or a
+  large part of it, as one text. Find out which step with
+  `web-scholium/scripts/memory-rehearsal.ts` (its first lines say how to run it; it only reads
+  the store) and make that step work in pieces. Do not delete or trim research to make it fit.
+  Known to be still too large at this size, and only run when the owner presses them:
+  downloading a checkpoint, branching from a checkpoint, the backup download and the JSON
+  export.
 - **Google Drive asks to be connected again.** Normally it does not: the saved connection comes
   over. If it does, the new site's address plus `/api/drive/callback` must be added to the
   "Authorised redirect URIs" of the owner's Google OAuth client, whose consent screen should be
@@ -407,31 +434,54 @@ What went wrong that time, and is now covered above and by `preflight.ts`:
 `EXPO_PUBLIC_PROJECT_ID` was not set on the new project, so the owner's sign-in was answered
 with `401` "claims" until it was set and the site built again.
 
-Where the site runs now: `https://web-scholium-publish.rork.app`. That is the "old site" for
-the next move, and where the owner copies the move key from.
+Changed in the code after that first move: the side menu can be folded away, the two status
+notes on a project's page can be dismissed, and the subagent limit is 1,000 (was 200; older
+projects are raised once when opened).
 
-Changed in the code since the first handover (all in this repository): the side menu can be
-folded away, the two status notes on a project's page can be dismissed, the subagent limit is
-1,000 (was 200; older projects are raised once when opened), and the daily-allowance stop is at
-95% (was 80%).
+### The second move, 25 November 2026
+
+The second account ran out of AI credits (model calls answered `HTTP 402`, "Insufficient
+credits"), so the site was moved to a third account. The owner pressed "Continue here" at
+14:50 UTC; the turn went to 7.
+
+What went wrong that time, and is fixed in this repository:
+
+- **The project had outgrown the server's 128 MB of memory.** Opening it, saving a checkpoint,
+  copying to the store and reading back from the store each held the whole project as one text.
+  All of these now work a piece at a time (`worker/sql-store.ts`, `worker/vault.ts`,
+  `worker/env.ts`, `worker/run-do.ts`, `src/engine/background.ts`). What is stored is, byte for
+  byte, what the old code stored; only the way it is produced changed.
+- **A crash every 45 seconds for a day ("Can't open project").** On opening, the project at
+  once began its Google Drive copy, which built the full report (18 million characters), its
+  LaTeX form and the whole ledger together. It crashed before it could note the attempt, so it
+  began again on every reopening and used up the day's read allowance several times over. Now
+  the copy builds one file at a time, notes the attempt before starting, and for a project this
+  large the report in Drive leaves out experiment code and output and `ledger.json` is no
+  longer updated there (every artifact and every experiment's code is still copied; the
+  complete record is in the store).
+- **The site's own daily-allowance stop** was removed at the owner's request.
+
+Where the site runs now: `https://scholium-publish.rork.app`. That is the "old site" for the
+next move, and where the owner copies the move key from. The copy on the previous account
+(`scholium-research-site.rork.app`) is out of AI credits: do not move the turn back to it.
 
 ## State at the last handover check
 
-Checked with `check-store.ts` on 22 November 2026, about 05:10 UTC, while the project was
-working on the second account. The result: "Nothing is missing: every stored project is whole."
+Checked with `check-store.ts` on 26 November 2026, about 11:40 UTC, while the project was
+working on the third account. The result: "Nothing is missing: every stored project is whole."
 
-- One project: "Binary Permutation X-rays and the Two-Diagonal Extension", working, cycle 3,
-  phase `revise`, about $3,262 spent of its budget.
-- 226 agents, 224 of them subagents, subagent limit 1,000.
-- 367 tasks; 353 with the transcript complete to the last message (8,084 messages) and 14 in
-  progress at that second, whose newest messages were still on their way.
-- Activity log entries 1 to 1,395 with no gap.
-- 3 checkpoints, all with their full snapshot.
-- 128 sources (86 with saved text), 23 of 23 uploaded files stored.
-- Ledger: 328 claims, 1,521 evidence items, 1,819 experiments, 442 notes, 42 objections,
-  320 reviews, 14 owner instructions, 20 artifacts, 6,754 model calls, 1,066 Drive file records,
-  5 emails, 4 obligations.
-- 22,675 stored items, about 144 million characters.
+- One project: "Binary Permutation X-rays and the Two-Diagonal Extension", working, cycle 4,
+  phase `work`, about $5,263 spent of its budget.
+- 625 agents, 622 of them subagents, subagent limit 1,000.
+- 1,239 tasks; 1,232 with the transcript complete to the last message (20,341 messages) and 7
+  in progress at that second, whose newest messages were still on their way.
+- Activity log entries 1 to 6,051 with no gap.
+- 9 checkpoints, all with their full snapshot.
+- 198 sources (132 with saved text), 23 of 23 uploaded files stored.
+- Ledger: 760 claims, 2,505 evidence items, 2,967 experiments, 731 notes, 83 objections,
+  320 reviews, 43 owner instructions, 41 artifacts, 14,245 model calls, 2,140 Drive file
+  records, 10 emails, 5 obligations.
+- 52,554 stored items, about 391 million characters.
 
 These numbers grow whenever the project works. Run the check again for the current truth.
 

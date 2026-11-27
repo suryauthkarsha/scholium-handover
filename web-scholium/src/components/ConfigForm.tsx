@@ -7,7 +7,7 @@ import { modelColor, usd } from "@/components/bits";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { MODELS, MODEL_KEYS, type ModelKey } from "@/shared/models";
-import { DEPTH_HARD_CAP, SPEED_CONCURRENCY, SUBAGENT_HARD_CAP, type Mode, type PublicSettings, type RunConfig, type RunTools, type SandboxExecutor, type Speed } from "@/shared/types";
+import { DEPTH_HARD_CAP, SPEED_CONCURRENCY, SPEED_LABEL, SPEEDS, SUBAGENT_HARD_CAP, type Mode, type PublicSettings, type RunConfig, type RunTools, type SandboxExecutor, type Speed } from "@/shared/types";
 
 export interface FormProps {
   config: RunConfig;
@@ -145,10 +145,10 @@ const MODES: { value: Mode; label: string; note: string }[] = [
   { value: "debate", label: "Debate", note: "Leads work blind each cycle, then examine each other's claims adversarially: objection, rebuttal or fix, resolution." },
 ];
 
-const SPEEDS: { value: Speed; label: string; note: string }[] = (["medium", "fast", "ultrafast"] as Speed[]).map((s) => ({
+const SPEED_OPTIONS: { value: Speed; label: string; note: string }[] = SPEEDS.map((s) => ({
   value: s,
-  label: s === "ultrafast" ? "Ultrafast" : s === "fast" ? "Fast" : "Medium",
-  note: `Up to ${SPEED_CONCURRENCY[s]} model calls at once.`,
+  label: SPEED_LABEL[s],
+  note: `Up to ${SPEED_CONCURRENCY[s]} model calls at once.${SPEED_CONCURRENCY[s] > 32 ? " Spends much faster." : ""}`,
 }));
 
 export function TeamFields({ config, onChange, disabled }: FormProps) {
@@ -165,7 +165,7 @@ export function TeamFields({ config, onChange, disabled }: FormProps) {
         <Choice label="Mode" value={config.mode} options={MODES} onChange={(mode) => set({ mode })} disabled={disabled} />
       </Field>
       <Field label="Speed" hint="Speed only sets how many model calls run side by side. It never lowers the effort a model is asked for.">
-        <Choice label="Speed" value={config.speed} options={SPEEDS} onChange={(speed) => set({ speed, limits: { ...config.limits, concurrency: SPEED_CONCURRENCY[speed] } })} disabled={disabled} />
+        <Choice label="Speed" value={config.speed} options={SPEED_OPTIONS} onChange={(speed) => set({ speed, limits: { ...config.limits, concurrency: SPEED_CONCURRENCY[speed] } })} disabled={disabled} />
       </Field>
     </div>
   );

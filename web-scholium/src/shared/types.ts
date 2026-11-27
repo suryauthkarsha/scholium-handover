@@ -17,10 +17,14 @@ export const AUTHOR_LABELS: Label[] = ["conjecture", "numerical", "partial", "ca
 
 // ---------- Run ----------
 export type Mode = "individual" | "collaborative" | "debate";
-export type Speed = "medium" | "fast" | "ultrafast";
-export const SPEED_CONCURRENCY: Record<Speed, number> = { medium: 8, fast: 16, ultrafast: 32 };
+export type Speed = "medium" | "fast" | "ultrafast" | "hundred" | "swarm";
+export const SPEEDS: Speed[] = ["medium", "fast", "ultrafast", "hundred", "swarm"];
+export const SPEED_LABEL: Record<Speed, string> = { medium: "Medium", fast: "Fast", ultrafast: "Ultrafast", hundred: "Hundred", swarm: "Swarm" };
+export const SPEED_CONCURRENCY: Record<Speed, number> = { medium: 8, fast: 16, ultrafast: 32, hundred: 100, swarm: 300 };
 /** The most model calls that ever run side by side, whatever a stored project asks for. */
-export const CONCURRENCY_HARD_CAP = 32;
+export const CONCURRENCY_HARD_CAP = 300;
+/** The most model calls a run makes itself. Anything beyond is carried by helpers, when the host provides them. */
+export const DIRECT_CONCURRENCY = 32;
 export type RunStatus = "draft" | "running" | "paused" | "stopped" | "completed" | "failed" | "needs_attention";
 export type Phase = "setup" | "understand" | "prior_work" | "work" | "cross_review" | "revise" | "confirm" | "decide" | "report" | "done";
 export const PHASE_NAMES: Record<Phase, string> = {

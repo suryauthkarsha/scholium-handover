@@ -7,6 +7,8 @@ import {
   ENTITY_KINDS,
   LABELS,
   CONCURRENCY_HARD_CAP,
+  DIRECT_CONCURRENCY,
+  SPEEDS,
   SPEED_CONCURRENCY,
   SUBAGENT_HARD_CAP,
   DEPTH_HARD_CAP,
@@ -67,7 +69,7 @@ const METHOD_REFRESH_MS = 5 * 60_000;
 
 export const DEFAULT_OPTS: EngineOpts = {
   compactAtTokens: 120000,
-  maxStartsPerTick: 16,
+  maxStartsPerTick: 40,
   backoffMs: [2000, 6000, 18000, 45000, 90000, 180000, 300000, 300000],
   heartbeatMs: 20000,
   maxAttempts: 9,
@@ -133,7 +135,7 @@ export function sanitizeConfig(input: unknown, base: RunConfig = defaultConfig()
   const t = obj(i.tools);
   const a = obj(i.alerts);
   const leads = "leads" in i ? modelList(i.leads, DEFAULT_LEADS) : base.leads;
-  const speed = (["medium", "fast", "ultrafast"] as const).find((s) => s === i.speed) ?? base.speed;
+  const speed = SPEEDS.find((s) => s === i.speed) ?? base.speed;
   const mode = (["individual", "collaborative", "debate"] as const).find((s) => s === i.mode) ?? base.mode;
   const subs = "subagentModels" in i ? modelList(i.subagentModels, leads) : base.subagentModels.length ? base.subagentModels : leads;
   return {
@@ -1415,7 +1417,9 @@ export class Engine {
     if (this.run.status !== "running") return;
     // A project saved by a version with a speed this one does not know still gets a limit: the one it stored.
     const stored = Number(this.run.config.limits.concurrency);
-    const limit = SPEED_CONCURRENCY[this.run.config.speed] ?? Math.min(CONCURRENCY_HARD_CAP, Math.max(1, Number.isFinite(stored) ? Math.round(stored) : CONCURRENCY_HARD_CAP));
+    const wanted = SPEED_CONCURRENCY[this.run.config.speed] ?? Math.min(CONCURRENCY_HARD_CAP, Math.max(1, Number.isFinite(stored) ? Math.round(stored) : DIRECT_CONCURRENCY));
+    // More than a run can hold open itself is possible only while helpers are there to carry the rest.
+    const limit = Math.min(wanted, Math.max(DIRECT_CONCURRENCY, this.services.llm.maxParallel ?? DIRECT_CONCURRENCY));
     const cands = this.candidates(this.now());
     const instructed = this.awaitingInstruction();
     let started = 0;

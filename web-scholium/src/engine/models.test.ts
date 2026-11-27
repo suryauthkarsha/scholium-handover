@@ -41,7 +41,7 @@ describe("model allowlist", () => {
   });
 
   it("lets the speed setting change parallelism and nothing else", () => {
-    expect(SPEED_CONCURRENCY).toEqual({ medium: 8, fast: 16, ultrafast: 32 });
+    expect(SPEED_CONCURRENCY).toEqual({ medium: 8, fast: 16, ultrafast: 32, hundred: 100, swarm: 300 });
     const base = sanitizeConfig({ goal: "g", speed: "medium" });
     for (const speed of ["medium", "fast", "ultrafast"] as const) {
       const c = sanitizeConfig({ goal: "g", speed });

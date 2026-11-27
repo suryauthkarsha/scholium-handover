@@ -5,6 +5,8 @@ export interface Env {
   ASSETS: Fetcher;
   RUN: DurableObjectNamespace;
   WORKSPACE: DurableObjectNamespace;
+  /** Helpers that make model calls beyond what one run can hold open itself. See caller-do.ts. */
+  CALLER?: DurableObjectNamespace;
   /** Signs tickets and protects object-to-object calls. */
   SCHOLIUM_SECRET: string;
   /** Rork AI Cloud credential. Server-side only: it is never sent to the browser or to a sandbox. */

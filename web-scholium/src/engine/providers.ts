@@ -60,6 +60,8 @@ export interface RelayResult {
 }
 
 export interface Llm {
+  /** How many calls this client can carry at once. Unset means only what one run can hold open itself. */
+  readonly maxParallel?: number;
   call(req: LlmRequest): Promise<LlmResponse>;
   relay(executor: SandboxExecutor, system: string, command: string, signal?: AbortSignal): Promise<RelayResult>;
 }

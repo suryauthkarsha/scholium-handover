@@ -12,6 +12,7 @@ import { WS_TICKET_TTL_MS } from "../src/shared/gate";
 import { OLD_SITES, oldSitePass } from "../src/shared/oldSite";
 import { ENTITY_KINDS, type EntityKind, type RunSummary, type ServerMsg } from "../src/shared/types";
 import { callObject, type Env, fail, fromInside, json, jsonStream, notFound, readBody, rec, snapshotText, withMoveKey } from "./env";
+import { pooledLlm } from "./caller-do";
 import { SqlStore } from "./sql-store";
 import { type Cursor, Dirty, dropObject, hasRows, type Lease, Mirror, newTally, restore, sameValue, type Tally, vaultOn } from "./vault";
 import { STANDBY } from "./workspace-do";
@@ -96,7 +97,7 @@ export class ResearchRun extends DurableObject<Env> {
     // Every free-tier side effect asks the workspace first, which counts it against a hard daily or monthly cap.
     const take = async (kind: "exa" | "email" | "drive"): Promise<boolean> => (await this.ask<{ ok?: boolean }>("POST", "/internal/take", { kind }))?.ok === true;
     const base = createServices({
-      llm: createGateway({ secret: modelAccount(env).secret }),
+      llm: pooledLlm(env, createGateway({ secret: modelAccount(env).secret })),
       toolkitSecret: modelAccount(env).secret,
       settings: async () => (await this.ask<{ exaKey?: string; leanUrl?: string }>("GET", "/internal/secrets")) ?? {},
       driveToken: async () => (await this.ask<{ token?: string; error?: string }>("POST", "/internal/drive-token")) ?? { error: "The workspace could not be reached." },

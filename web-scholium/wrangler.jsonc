@@ -12,7 +12,11 @@
     "bindings": [
       { "name": "RUN", "class_name": "ResearchRun" },
       { "name": "WORKSPACE", "class_name": "Workspace" },
+      { "name": "CALLER", "class_name": "ModelCaller" },
     ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ResearchRun", "Workspace"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ResearchRun", "Workspace"] },
+    { "tag": "v2", "new_sqlite_classes": ["ModelCaller"] },
+  ],
 }

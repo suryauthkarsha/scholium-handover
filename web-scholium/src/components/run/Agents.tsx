@@ -205,10 +205,98 @@ function Graph({ nodes, w, h, match }: { nodes: Node[]; w: number; h: number; ma
   );
 }
 
+/**
+ * Every subagent at once: one small square each, in the order they were created, under the lead whose team they
+ * belong to. The squares follow the graph's signs, so thousands fit on a screen and still read at a glance.
+ */
+function Wall({ agents, match }: { agents: Agent[]; match: Set<string> | null }) {
+  const { open } = useRunCtx();
+  const [hover, setHover] = useState<Agent | null>(null);
+  const teams = useMemo(() => {
+    const leads = agents.filter((a) => a.kind === "lead");
+    const by = new Map<string, Agent[]>();
+    for (const a of agents) if (a.kind === "subagent") by.set(a.team, [...(by.get(a.team) ?? []), a]);
+    const known = new Set(leads.map((l) => l.id));
+    const out = leads.map((l) => ({ id: l.id, lead: l as Agent | undefined, subs: by.get(l.id) ?? [] }));
+    const stray = [...by].filter(([id]) => !known.has(id)).flatMap(([, v]) => v);
+    if (stray.length) out.push({ id: "other", lead: undefined, subs: stray });
+    return out;
+  }, [agents]);
+  const count = (subs: Agent[], k: AgentStatus): number => subs.reduce((n, a) => n + (a.status === k ? 1 : 0), 0);
+  return (
+    <div className="space-y-3">
+      {teams.map((t) => (
+        <div key={t.id}>
+          <p className="tabular mb-1 flex flex-wrap items-baseline gap-x-3 text-xs text-muted-foreground">
+            {t.lead ? (
+              <button type="button" onClick={() => t.lead && open(t.lead.id)} className="font-serif text-sm text-foreground hover:underline">
+                {t.lead.name}
+              </button>
+            ) : (
+              <span className="font-serif text-sm text-foreground">Other</span>
+            )}
+            <span>{t.subs.length} subagents</span>
+            <span>{count(t.subs, "running")} running</span>
+            <span>{count(t.subs, "queued") + count(t.subs, "idle")} queued</span>
+            <span>{count(t.subs, "completed")} finished</span>
+            <span>{count(t.subs, "failed")} failed</span>
+          </p>
+          {t.subs.length ? (
+            <div className="flex flex-wrap gap-[2px]" onMouseLeave={() => setHover(null)}>
+              {t.subs.map((a) => {
+                const c = modelColor(a.model);
+                const st = a.status;
+                const hollow = st === "queued" || st === "idle" || st === "cancelled";
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    aria-label={`${a.name}, ${st}`}
+                    onClick={() => open(a.id)}
+                    onMouseEnter={() => setHover(a)}
+                    onFocus={() => setHover(a)}
+                    className={`h-2.5 w-2.5 rounded-[2px] border outline-none hover:scale-150 focus-visible:scale-150 ${st === "running" ? "animate-pulse" : ""}`}
+                    style={{
+                      background: st === "failed" ? "hsl(var(--destructive))" : hollow ? "transparent" : c,
+                      borderColor: st === "failed" ? "hsl(var(--destructive))" : c,
+                      borderStyle: st === "cancelled" ? "dashed" : "solid",
+                      opacity: match && !match.has(a.id) ? 0.15 : st === "cancelled" ? 0.5 : st === "completed" ? 0.6 : 1,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">No subagents yet.</p>
+          )}
+        </div>
+      ))}
+      <p className="min-h-[2.5rem] border-t pt-1.5 text-xs text-muted-foreground" aria-live="polite">
+        {hover ? (
+          <>
+            <span className="font-medium text-foreground">{hover.name}</span> · {MODELS[hover.model].short} · {hover.status} · {usd(hover.costUsd)} · {hover.turns} {hover.turns === 1 ? "turn" : "turns"}
+            <span className="block truncate">{brief(hover.assignment?.question ?? hover.role, 200)}</span>
+          </>
+        ) : (
+          <span className="flex flex-wrap gap-x-3">
+            <span>one square = one subagent, oldest first</span>
+            <span>pulsing = working</span>
+            <span>faded = finished</span>
+            <span>hollow = waiting to start</span>
+            <span>red = failed</span>
+            <span>dashed = cancelled</span>
+          </span>
+        )}
+      </p>
+    </div>
+  );
+}
+
 export default function Agents() {
   const { data, run, open } = useRunCtx();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<AgentStatus | "all">("all");
+  const [dense, setDense] = useState(true);
   const g = useMemo(() => layout(data.agent), [data.agent]);
   const depth = useMemo(() => new Map(g.nodes.map((n) => [n.a.id, n.y / DY])), [g]);
   const needle = q.trim().toLowerCase();
@@ -249,6 +337,10 @@ export default function Agents() {
         </p>
       </div>
 
+      <Section title="All subagents at once" aside={<span className="tabular text-xs text-muted-foreground">{s.created}</span>}>
+        <Wall agents={data.agent} match={match} />
+      </Section>
+
       <Graph nodes={g.nodes} w={g.w} h={g.h} match={match} />
 
       <Section title="All agents" aside={<span className="tabular text-xs text-muted-foreground">{rows.length === data.agent.length ? data.agent.length : `${rows.length} of ${data.agent.length}`}</span>}>
@@ -259,10 +351,26 @@ export default function Agents() {
               {k}
             </button>
           ))}
+          <button type="button" onClick={() => setDense((d) => !d)} aria-pressed={dense} className={`press ml-auto rounded-sm border px-2 py-0.5 text-xs ${dense ? "border-foreground bg-foreground text-background" : "bg-background hover:border-foreground/50"}`}>
+            compact
+          </button>
         </div>
         {rows.length ? (
           <ul>
-            {rows.map((a) => (
+            {rows.map((a) =>
+              dense ? (
+                <li key={a.id} className="border-b last:border-b-0">
+                  <button type="button" onClick={() => open(a.id)} className="flex w-full items-center gap-2 py-0.5 pr-1 text-left text-xs hover:bg-secondary/50" style={{ paddingLeft: 4 + (depth.get(a.id) ?? 0) * 10 }}>
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: modelColor(a.model) }} />
+                    <span className={`shrink-0 ${a.kind === "lead" ? "font-serif text-sm" : "font-medium"}`}>{a.kind === "lead" ? a.name : a.id}</span>
+                    <span className={`w-16 shrink-0 ${a.status === "failed" ? "text-destructive" : a.status === "running" ? "text-foreground" : "text-muted-foreground"}`}>{a.kind === "lead" && !a.active ? "removed" : a.status}</span>
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">{brief(a.assignment?.question ?? a.role, 160)}</span>
+                    <span className="tabular shrink-0 text-muted-foreground">
+                      {usd(a.costUsd)} · {a.turns}t
+                    </span>
+                  </button>
+                </li>
+              ) : (
               <li key={a.id} className="border-b last:border-b-0">
                 <button type="button" onClick={() => open(a.id)} className="block w-full py-2 pr-1 text-left hover:bg-secondary/50" style={{ paddingLeft: 4 + (depth.get(a.id) ?? 0) * 16 }}>
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -279,7 +387,8 @@ export default function Agents() {
                   {a.error ? <span className="mt-0.5 block text-xs text-destructive">{brief(a.error, 220)}</span> : null}
                 </button>
               </li>
-            ))}
+              ),
+            )}
           </ul>
         ) : (
           <p className="py-3 text-sm text-muted-foreground">No agent matches that search.</p>

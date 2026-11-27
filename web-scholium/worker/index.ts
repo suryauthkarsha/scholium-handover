@@ -7,6 +7,7 @@ import { type Env, withMoveKey } from "./env";
 
 export { ResearchRun } from "./run-do";
 export { Workspace } from "./workspace-do";
+export { ModelCaller } from "./caller-do";
 
 // Sign-in tokens are issued for the Rork project the site is published from. Rork gives every project its own
 // id, so a copy published from another account checks tokens against that account's project with no change here.

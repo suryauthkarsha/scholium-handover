@@ -18,7 +18,9 @@ export const AUTHOR_LABELS: Label[] = ["conjecture", "numerical", "partial", "ca
 // ---------- Run ----------
 export type Mode = "individual" | "collaborative" | "debate";
 export type Speed = "medium" | "fast" | "ultrafast";
-export const SPEED_CONCURRENCY: Record<Speed, number> = { medium: 4, fast: 8, ultrafast: 16 };
+export const SPEED_CONCURRENCY: Record<Speed, number> = { medium: 8, fast: 16, ultrafast: 32 };
+/** The most model calls that ever run side by side, whatever a stored project asks for. */
+export const CONCURRENCY_HARD_CAP = 32;
 export type RunStatus = "draft" | "running" | "paused" | "stopped" | "completed" | "failed" | "needs_attention";
 export type Phase = "setup" | "understand" | "prior_work" | "work" | "cross_review" | "revise" | "confirm" | "decide" | "report" | "done";
 export const PHASE_NAMES: Record<Phase, string> = {
@@ -34,8 +36,8 @@ export const PHASE_NAMES: Record<Phase, string> = {
   done: "Done",
 };
 export type SandboxExecutor = "astra-shell" | "fable-bash";
-/** The most subagents one run may ever create. It was 100 until November 2026, then 200 for a short while. */
-export const SUBAGENT_HARD_CAP = 1000;
+/** The most subagents one run may ever create. It was 100 until November 2026, then 200, 1000 and 2000 for a short while each. */
+export const SUBAGENT_HARD_CAP = 10000;
 /** How many levels of handing work down a run may allow. The subagent total still bounds the size of the tree. */
 export const DEPTH_HARD_CAP = 5;
 

@@ -242,7 +242,7 @@ describe("the report", () => {
     expect(t).toMatch(/- openai\/gpt-6\.2-astra-fast: \d+ calls, \\\$\d+\.\d+; provider reported: gpt-6\.2-astra-2026-10-01/);
     expect(t).toMatch(/- anthropic\/claude-fable-5\.2-fast: \d+ calls, \\\$\d+\.\d+; provider reported: claude-fable-5\.2-2026-10-01/);
     expect(t).toMatch(/- Checkpoints: K1 \(cycle 1, Done; completed\)/);
-    expect(t).toMatch(/- Subagents: 2 of 1000 created/);
+    expect(t).toMatch(/- Subagents: 2 of 10000 created/);
     // Money never opens inline math: every dollar sign in the platform's own lines is escaped.
     expect(t).toMatch(/- Spend: \\\$\d+\.\d+ of \\\$40\.00 allowed, over \d+ model calls/);
     expect(t).not.toMatch(/(^|[^\\])\$\d/);

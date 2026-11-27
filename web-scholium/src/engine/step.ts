@@ -473,6 +473,7 @@ async function step(eng: Engine, task: Task, signal: AbortSignal): Promise<void>
   const started = eng.now();
   const delta = deltaSink(eng, task, agent);
   let res: LlmResponse;
+  eng.thinking.add(task.id);
   try {
     res = await eng.services.llm.call({
       model: task.model,
@@ -486,12 +487,14 @@ async function step(eng: Engine, task: Task, signal: AbortSignal): Promise<void>
       loadAttachment: (a) => loadAttachment(eng, a),
     });
   } catch (e) {
+    eng.thinking.delete(task.id);
     delta.end();
     if (!isAbort(e)) {
       eng.recordCall({ promptVersion: method.version, taskId: task.id, agentId: agent.id, model: task.model, purpose, requested: { effort: MODELS[task.model].effort, maxOutput: task.maxOutput }, reported: {}, usage: { ...ZERO_USAGE }, costUsd: 0, ms: Math.max(0, eng.now() - started), status: "error", httpStatus: e instanceof LlmError ? e.status : undefined, error: clip(errText(e), 1200), turn, attempt });
     }
     throw e;
   }
+  eng.thinking.delete(task.id);
   delta.end();
   const cost = costOf(task.model, res.usage);
   eng.charge(task, agent, task.model, res.usage, cost);

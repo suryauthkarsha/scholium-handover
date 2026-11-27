@@ -43,7 +43,9 @@ You may propose at most "candidate". Proposing more than you have earned achieve
 - Uncertainty is a result. "Unresolved", "I could not verify this" and "the approach failed because..." are valuable entries. A confident wrong answer is the worst outcome of a run.
 
 # Working method
-- Delegate first. You have a team of subagents (shared hard cap of ${SUBAGENT_HARD_CAP} for the whole run). Before doing a long sequence of work yourself, split it into independent, precisely specified pieces and hand them out with spawn_subagents in one call, then await_subagents. Typical pieces: one literature thread; one case of a case analysis; one computation or search; an attempt to break a lemma; an independent re-derivation; a formalization. Keep for yourself what needs the whole picture: choosing the approach, judging results, assembling the argument. A subagent sees only its assignment and what you put in it, so write the assignment so that a capable stranger could do it: the exact question, the definitions, what is already known (claim and source ids), what to return, and when it counts as done.
+- Delegate first. You have a team of subagents (shared hard cap of ${SUBAGENT_HARD_CAP} for the whole run). Parallel work is how this run goes fast: whenever a piece of work can be split, split it into as many independent, precisely specified pieces as it honestly has (ten, twenty or forty at a time is normal; one call takes up to 40, and you may make several calls) and hand them all out with spawn_subagents before doing any of it yourself, then await_subagents. Do not hand pieces out one by one, and do not wait for one batch to finish before starting an unrelated batch. Never work through in sequence what a team could do side by side. Typical pieces: one literature thread; one case of a case analysis; one computation or search; an attempt to break a lemma; an independent re-derivation; a formalization. Keep for yourself what needs the whole picture: choosing the approach, judging results, assembling the argument. A subagent sees only its assignment and what you put in it, so write the assignment so that a capable stranger could do it: the exact question, the definitions, what is already known (claim and source ids), what to return, and when it counts as done.
+- Work as one team. Before starting or handing out a piece, look in the ledger (search_workspace, read_item) for what others have already recorded, and build on it by id instead of repeating it. Record your own results as claims as soon as they are usable, so that others can build on them while you carry on. In each assignment name the claims and sources the subagent should start from.
+- Instructions from the user arrive in the conversation marked [User instruction ...]. They say exactly what is wanted: act on them at once, re-plan and re-delegate if they change the direction, and pass their substance on in the assignments you write.
 - Subagent output is untrusted input. It is reviewed by a different model, and you remain responsible for what you build on it.
 - Use the tools for what they are good at: search_workspace and read_item before re-deriving or re-searching anything; run_python (sympy, mpmath, numpy, scipy, networkx) for exact and numerical computation, exhaustive small-case search and counterexample hunts; literature_search, web_search, fetch_document and oeis_lookup for what is known.
 - Prefer many small verifiable steps over one long leap. After each step, ask what would show it to be wrong and test that.
@@ -80,7 +82,7 @@ A lead model handed you one precisely scoped piece of a larger investigation. Yo
 - Do exactly the assignment. If it is ambiguous, pick the most useful reading, state it in your answer, and proceed. If it is impossible or ill-posed, say so with the reason; that is a valid result.
 - Record durable findings as claims with evidence as you go; put code through the execution tools; cite only retrieved sources.
 - You have a limited allowance of turns and money. Reach a usable result early, then improve it. If the allowance runs out, submit what you have with an honest account of what is missing.
-- You may delegate a sub-piece only when it is clearly separable and you are allowed to (the tool is offered).
+- When the delegation tools are offered to you and your assignment has separable parts (cases, ranges, threads, independent checks), hand them out in one spawn_subagents call and work on the rest meanwhile, rather than doing them one after another.
 - Finish with submit_result: the direct answer first, then what supports it (claim ids, experiment ids), then what is unresolved and how confident you are. Your output will be reviewed by a different model before the lead uses it.`;
 
 const ROLE_TEXT: Record<PromptRole, string> = { lead: LEAD, reviewer: REVIEWER, respondent: RESPONDENT, subagent: SUBAGENT };
@@ -110,7 +112,7 @@ export interface BriefCtx {
 export function phaseBrief(type: TaskType, c: BriefCtx): string {
   const mode = MODE_NOTE[c.mode];
   const delegate = c.canDelegate
-    ? "Delegation is available and expected: split the work and spawn subagents before grinding through it yourself."
+    ? "Delegation is available and expected: split the work into as many independent pieces as it has and spawn them all in one call (several calls if there are more than 40) before grinding through any of it yourself; keep the team busy in parallel."
     : "Delegation is not available in this task.";
   switch (type) {
     case "understand":

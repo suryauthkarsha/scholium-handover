@@ -41,7 +41,7 @@ describe("model allowlist", () => {
   });
 
   it("lets the speed setting change parallelism and nothing else", () => {
-    expect(SPEED_CONCURRENCY).toEqual({ medium: 4, fast: 8, ultrafast: 16 });
+    expect(SPEED_CONCURRENCY).toEqual({ medium: 8, fast: 16, ultrafast: 32 });
     const base = sanitizeConfig({ goal: "g", speed: "medium" });
     for (const speed of ["medium", "fast", "ultrafast"] as const) {
       const c = sanitizeConfig({ goal: "g", speed });
@@ -50,9 +50,9 @@ describe("model allowlist", () => {
     }
   });
 
-  it("clamps limits and never allows more than 1000 subagents", () => {
-    const c = sanitizeConfig({ limits: { subagentCap: 5000, maxDepth: 9, spendUsd: -3, runtimeMin: 1, maxCycles: 0 }, alerts: { intervalMin: 1 } });
-    expect(c.limits.subagentCap).toBe(1000);
+  it("clamps limits and never allows more than 10000 subagents", () => {
+    const c = sanitizeConfig({ limits: { subagentCap: 50000, maxDepth: 9, spendUsd: -3, runtimeMin: 1, maxCycles: 0 }, alerts: { intervalMin: 1 } });
+    expect(c.limits.subagentCap).toBe(10000);
     expect(c.limits.maxDepth).toBe(5);
     expect(c.limits.spendUsd).toBe(1);
     expect(c.limits.runtimeMin).toBe(5);

@@ -6,6 +6,7 @@ import { BASE_METHOD, type ActiveMethod } from "./strategy";
 import {
   ENTITY_KINDS,
   LABELS,
+  CONCURRENCY_HARD_CAP,
   SPEED_CONCURRENCY,
   SUBAGENT_HARD_CAP,
   DEPTH_HARD_CAP,
@@ -66,7 +67,7 @@ const METHOD_REFRESH_MS = 5 * 60_000;
 
 export const DEFAULT_OPTS: EngineOpts = {
   compactAtTokens: 120000,
-  maxStartsPerTick: 5,
+  maxStartsPerTick: 16,
   backoffMs: [2000, 6000, 18000, 45000, 90000, 180000, 300000, 300000],
   heartbeatMs: 20000,
   maxAttempts: 9,
@@ -110,6 +111,8 @@ export { AGENT_TERMINAL, LEAD_TASKS, TERMINAL };
 const PRIORITY: Record<string, number> = { subagent: 0, subagent_review: 1 };
 /** How long a lead keeps its place at the front after receiving an instruction, so that it can act on it. */
 const INSTRUCTION_HEAD_MS = 30 * 60000;
+/** How long a lead that is running tools may finish them before a new instruction interrupts it. */
+const INSTRUCTION_GRACE_MS = 15_000;
 const PREFLIGHT_TOOLS = ["web", "literature", "oeis", "sage", "lean"] as const;
 type ToolName = "web" | "literature" | "oeis" | "sandbox" | "sage" | "lean";
 
@@ -199,6 +202,8 @@ export class Engine {
   /** Steps running right now, by task id. */
   inFlight = new Map<string, Promise<void>>();
   aborts = new Map<string, AbortController>();
+  /** Tasks whose step is waiting for a model's answer right now (as opposed to running tools). */
+  thinking = new Set<string>();
   /** Background jobs (email, Drive, tool checks) running right now, by key. */
   jobs = new Map<string, Promise<void>>();
   private transcripts = new Map<string, Msg[]>();
@@ -1062,8 +1067,38 @@ export class Engine {
     this.index(i.id, "instruction", "Instruction from the user", i.text);
     this.event("info", "instruction", `Instruction ${i.id} queued for ${target === "all" ? "all leads" : (this.m.agent.get(target)?.name ?? target)}.`, undefined, i.id);
     this.flush();
+    this.hasten(target);
     this.kick();
     return { ok: true, id: i.id };
+  }
+
+  /**
+   * Gets a new instruction to its leads within seconds instead of at the end of whatever they are doing.
+   * A lead waiting for a model's answer is interrupted at once and starts the same turn again with the instruction
+   * in front of it; nothing saved is lost, only the unfinished answer. A lead in the middle of running tools gets
+   * a short while to finish them, since stopping a tool halfway leaves the lead unsure what took effect.
+   */
+  private hasten(target: string): void {
+    if (this.run.status !== "running") return;
+    const ids = new Set(target === "all" ? this.activeLeads().map((l) => l.id) : [target]);
+    for (const t of this.all("task")) {
+      if (!LEAD_TASKS.has(t.type) || !ids.has(t.agentId) || TERMINAL.has(t.status)) continue;
+      if (t.notBefore && t.notBefore > this.now()) {
+        t.notBefore = undefined;
+        this.put("task", t);
+      }
+      const ac = this.aborts.get(t.id);
+      if (!ac) continue;
+      if (this.thinking.has(t.id)) {
+        ac.abort();
+        continue;
+      }
+      setTimeout(() => {
+        const agent = this.m.agent.get(t.agentId);
+        if (this.aborts.get(t.id) === ac && agent && this.pendingInstructions(agent).length) ac.abort();
+      }, INSTRUCTION_GRACE_MS);
+    }
+    this.flush();
   }
 
   editInstruction(id: string, body: string): ActionResult {
@@ -1356,6 +1391,17 @@ export class Engine {
     return out;
   }
 
+  /** Leads with an instruction they have not received yet. Their task starts even when every slot is taken. */
+  private awaitingInstruction(): Set<string> {
+    const out = new Set<string>();
+    for (const i of this.all("instruction")) {
+      if (i.status !== "queued") continue;
+      const want = i.target === "all" ? this.activeLeads().map((l) => l.id) : [i.target];
+      for (const id of want) if (!i.deliveries.some((d) => d.agentId === id)) out.add(id);
+    }
+    return out;
+  }
+
   private candidates(now: number): Task[] {
     const first = this.instructedLeads(now);
     const rank = (t: Task): number => (first.size && LEAD_TASKS.has(t.type) && first.has(t.agentId) ? -1 : (PRIORITY[t.type] ?? 2));
@@ -1367,15 +1413,26 @@ export class Engine {
   private dispatch(): void {
     this.moreToStart = false;
     if (this.run.status !== "running") return;
-    const limit = SPEED_CONCURRENCY[this.run.config.speed];
+    // A project saved by a version with a speed this one does not know still gets a limit: the one it stored.
+    const stored = Number(this.run.config.limits.concurrency);
+    const limit = SPEED_CONCURRENCY[this.run.config.speed] ?? Math.min(CONCURRENCY_HARD_CAP, Math.max(1, Number.isFinite(stored) ? Math.round(stored) : CONCURRENCY_HARD_CAP));
     const cands = this.candidates(this.now());
+    const instructed = this.awaitingInstruction();
     let started = 0;
     let unaffordable = 0;
     for (const t of cands) {
-      if (this.inFlight.size >= limit) break;
-      if (started >= this.opts.maxStartsPerTick) {
-        this.moreToStart = true;
-        break;
+      // A lead the user has just instructed does not wait for a free slot: it is one extra call, for one step.
+      const urgent = instructed.size > 0 && LEAD_TASKS.has(t.type) && instructed.has(t.agentId);
+      if (!urgent) {
+        if (this.inFlight.size >= limit) {
+          if (!instructed.size) break;
+          continue;
+        }
+        if (started >= this.opts.maxStartsPerTick) {
+          this.moreToStart = true;
+          if (!instructed.size) break;
+          continue;
+        }
       }
       const known = typeof t.input.ctxTokens === "number" ? t.input.ctxTokens : 0;
       const hold = worstCaseCost(t.model, Math.max(known, estTokens(60000)) + 4000, t.maxOutput);

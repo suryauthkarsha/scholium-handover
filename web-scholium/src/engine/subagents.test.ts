@@ -33,12 +33,12 @@ const subCount = (h: Harness): number => h.eng.all("agent").filter((a) => a.kind
 describe("the limit of subagents per run", () => {
   it("is enforced when one request asks for more", () => {
     const h = atPhase(makeHarness(), "work");
-    const r = h.eng.spawn(lead(h), specs(1030, "wide"));
-    expect(r.created).toHaveLength(1000);
-    expect(subCount(h)).toBe(1000);
-    expect(r.text).toMatch(/limit of 1000 subagents is reached/);
-    expect(h.eng.run.subagents.created).toBe(1000);
-    expect(new Set(r.created.map((a) => a.id)).size).toBe(1000);
+    const r = h.eng.spawn(lead(h), specs(10030, "wide"));
+    expect(r.created).toHaveLength(10000);
+    expect(subCount(h)).toBe(10000);
+    expect(r.text).toMatch(/limit of 10000 subagents is reached/);
+    expect(h.eng.run.subagents.created).toBe(10000);
+    expect(new Set(r.created.map((a) => a.id)).size).toBe(10000);
   });
 
   it("is shared by all leads and by subagents that delegate further", () => {
@@ -119,7 +119,7 @@ describe("the limit of subagents per run", () => {
 
 describe("the scheduler", () => {
   it("never runs more model calls at once than the speed setting allows", async () => {
-    for (const [speed, limit] of [["medium", 4], ["fast", 8], ["ultrafast", 16]] as const) {
+    for (const [speed, limit] of [["medium", 8], ["fast", 16], ["ultrafast", 32]] as const) {
       const h = makeHarness({ config: { speed } });
       h.llm.script = cooperative(h, { delegate: 14 });
       h.llm.gate = () => new Promise((r) => setTimeout(r, 6));

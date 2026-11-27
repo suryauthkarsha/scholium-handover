@@ -27,6 +27,8 @@ export interface LlmRequest {
   purpose: string;
   signal?: AbortSignal;
   onDelta?: (kind: "text" | "thinking", text: string) => void;
+  /** Called once the request has left. `carried` is true when a helper holds it, so the caller need not keep the messages. */
+  onSent?: (carried: boolean) => void;
   loadAttachment?: (a: Attachment) => AttachmentData | null;
 }
 

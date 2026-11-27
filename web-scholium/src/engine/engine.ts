@@ -115,6 +115,8 @@ const PRIORITY: Record<string, number> = { subagent: 0, subagent_review: 1 };
 const INSTRUCTION_HEAD_MS = 30 * 60000;
 /** How long a lead that is running tools may finish them before a new instruction interrupts it. */
 const INSTRUCTION_GRACE_MS = 15_000;
+/** Past the calls a run holds open itself, at most this many steps are setting off at any moment. */
+const MAX_LAUNCHING = 6;
 const PREFLIGHT_TOOLS = ["web", "literature", "oeis", "sage", "lean"] as const;
 type ToolName = "web" | "literature" | "oeis" | "sandbox" | "sage" | "lean";
 
@@ -206,6 +208,12 @@ export class Engine {
   aborts = new Map<string, AbortController>();
   /** Tasks whose step is waiting for a model's answer right now (as opposed to running tools). */
   thinking = new Set<string>();
+  /** Steps that have started but whose request has not left for the model yet. Each holds a whole transcript. */
+  launching = new Set<string>();
+  /** How many calls at once the model gateway is taking right now. Drops on "rate limit exceeded", climbs back after. */
+  private pace = Number.POSITIVE_INFINITY;
+  private paceCutAt = 0;
+  private paceNoteAt = 0;
   /** Background jobs (email, Drive, tool checks) running right now, by key. */
   jobs = new Map<string, Promise<void>>();
   private transcripts = new Map<string, Msg[]>();
@@ -433,6 +441,56 @@ export class Engine {
     this.msgFrom.set(task.id, 0);
     task.msgCount = all.length;
     this.put("task", task);
+  }
+
+  /**
+   * Drops a task's transcript from memory once it is written; it is read back from storage when next needed.
+   * With hundreds of calls in the air the run cannot hold every transcript at once.
+   */
+  park(taskId: string): void {
+    if (this.msgFrom.has(taskId)) {
+      try {
+        this.flush();
+      } catch {
+        return;
+      }
+    }
+    if (!this.msgFrom.has(taskId)) this.transcripts.delete(taskId);
+  }
+
+  /** True when the project is set to run more calls at once than the run holds open itself. */
+  pooled(): boolean {
+    return (SPEED_CONCURRENCY[this.run.config.speed] ?? Number(this.run.config.limits.concurrency)) > DIRECT_CONCURRENCY;
+  }
+
+  /** A step's request has left for the model. `carried` is true when a helper holds it rather than this run. */
+  sent(taskId: string, carried: boolean): void {
+    const was = this.launching.delete(taskId);
+    if (carried) this.park(taskId);
+    if (was) this.kick();
+  }
+
+  /** The gateway refused a call for sending too many at once: run fewer for now. Returns how long that call waits. */
+  rateLimited(waits: number): number {
+    const now = this.now();
+    if (now - this.paceCutAt > 5000) {
+      this.paceCutAt = now;
+      this.pace = Math.max(8, Math.floor(Math.min(this.pace, Math.max(this.inFlight.size, 8)) * 0.75));
+      if (now - this.paceNoteAt > 60_000) {
+        this.paceNoteAt = now;
+        this.event("warn", "retry", `The model gateway is refusing calls for arriving too fast (HTTP 429). Running about ${this.pace} at once for now and climbing back as it allows. Refused calls wait and go again; they do not count as failed attempts.`);
+      }
+    }
+    const base = [4000, 8000, 15000, 30000, 45000][Math.min(Math.max(waits, 0), 4)];
+    return Math.round(base * (1 + Math.random()));
+  }
+
+  /** A model call came back: if the gateway has not refused anything for a while, allow one more at once. */
+  callAnswered(): void {
+    if (this.pace === Number.POSITIVE_INFINITY) return;
+    if (this.now() - this.paceCutAt < 20_000) return;
+    this.pace += 0.5;
+    if (this.pace >= CONCURRENCY_HARD_CAP) this.pace = Number.POSITIVE_INFINITY;
   }
 
   /** Drops a finished task's transcript from memory once it is written. */
@@ -1419,7 +1477,7 @@ export class Engine {
     const stored = Number(this.run.config.limits.concurrency);
     const wanted = SPEED_CONCURRENCY[this.run.config.speed] ?? Math.min(CONCURRENCY_HARD_CAP, Math.max(1, Number.isFinite(stored) ? Math.round(stored) : DIRECT_CONCURRENCY));
     // More than a run can hold open itself is possible only while helpers are there to carry the rest.
-    const limit = Math.min(wanted, Math.max(DIRECT_CONCURRENCY, this.services.llm.maxParallel ?? DIRECT_CONCURRENCY));
+    const limit = Math.min(wanted, Math.max(DIRECT_CONCURRENCY, this.services.llm.maxParallel ?? DIRECT_CONCURRENCY), Math.floor(this.pace));
     const cands = this.candidates(this.now());
     const instructed = this.awaitingInstruction();
     let started = 0;
@@ -1437,6 +1495,12 @@ export class Engine {
           if (!instructed.size) break;
           continue;
         }
+        // Past what the run holds open itself, steps set off a few at a time: each one carries its whole
+        // transcript until its request has left, and the run's memory cannot take hundreds of those at once.
+        if (this.inFlight.size >= DIRECT_CONCURRENCY && this.launching.size >= MAX_LAUNCHING) {
+          if (!instructed.size) break;
+          continue;
+        }
       }
       const known = typeof t.input.ctxTokens === "number" ? t.input.ctxTokens : 0;
       const hold = worstCaseCost(t.model, Math.max(known, estTokens(60000)) + 4000, t.maxOutput);
@@ -1447,8 +1511,10 @@ export class Engine {
       t.reservedUsd = hold;
       this.put("task", t);
       started++;
+      if (!urgent && this.inFlight.size >= DIRECT_CONCURRENCY) this.launching.add(t.id);
       const p = runStep(this, t).then(() => {
         this.inFlight.delete(t.id);
+        this.launching.delete(t.id);
         this.kick();
       });
       this.inFlight.set(t.id, p);

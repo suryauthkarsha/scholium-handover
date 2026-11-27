@@ -474,6 +474,7 @@ async function step(eng: Engine, task: Task, signal: AbortSignal): Promise<void>
   const delta = deltaSink(eng, task, agent);
   let res: LlmResponse;
   eng.thinking.add(task.id);
+  msgs = [];
   try {
     res = await eng.services.llm.call({
       model: task.model,
@@ -484,9 +485,11 @@ async function step(eng: Engine, task: Task, signal: AbortSignal): Promise<void>
       purpose,
       signal,
       onDelta: delta.push,
+      onSent: (carried) => eng.sent(task.id, carried),
       loadAttachment: (a) => loadAttachment(eng, a),
     });
   } catch (e) {
+    eng.launching.delete(task.id);
     eng.thinking.delete(task.id);
     delta.end();
     if (!isAbort(e)) {
@@ -494,7 +497,9 @@ async function step(eng: Engine, task: Task, signal: AbortSignal): Promise<void>
     }
     throw e;
   }
+  eng.launching.delete(task.id);
   eng.thinking.delete(task.id);
+  eng.callAnswered();
   delta.end();
   const cost = costOf(task.model, res.usage);
   eng.charge(task, agent, task.model, res.usage, cost);
@@ -503,6 +508,7 @@ async function step(eng: Engine, task: Task, signal: AbortSignal): Promise<void>
   task.turns++;
   agent.turns++;
   task.attempts = 0;
+  task.input.rateWaits = 0;
   task.error = undefined;
   task.input.ctxTokens = res.usage.input + res.usage.cacheRead + res.usage.cacheWrite + res.usage.output;
   agent.lastActivity = describe(res.calls, res.text);
@@ -647,6 +653,14 @@ function onError(eng: Engine, task: Task, e: unknown): void {
       return;
     }
   }
+  if (llm?.status === 429) {
+    // Too many calls at once is the run's own doing, not this agent's: it waits its turn and loses no attempt.
+    const waits = n(task.input.rateWaits);
+    task.input.rateWaits = waits + 1;
+    task.error = clip(message, 800);
+    requeue(eng.now() + eng.rateLimited(waits));
+    return;
+  }
   task.attempts++;
   task.error = clip(message, 800);
   const cap = llm ? (task.model === "gpt55pro" && llm.status === 524 ? 2 : eng.opts.maxAttempts) : 3;
@@ -703,11 +717,14 @@ export async function runStep(eng: Engine, task: Task): Promise<void> {
       task.reservedUsd = 0;
       eng.put("task", task);
     }
+    eng.launching.delete(task.id);
     try {
       eng.flush();
     } catch (e) {
       console.error("flush failed", errText(e));
     }
+    // With hundreds of agents, one that is between steps does not keep its transcript in memory.
+    if (eng.pooled()) eng.park(task.id);
   }
 }
 

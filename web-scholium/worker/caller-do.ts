@@ -77,7 +77,10 @@ export function pooledLlm(env: Env, direct: Llm): Llm {
   let trippedUntil = 0;
   const open = (): boolean => Date.now() >= trippedUntil;
 
-  const viaHelper = async (req: LlmRequest): Promise<LlmResponse> => {
+  // Takes the request already written out, and nothing else of it: once it has left, the run holds no copy.
+  const viaHelper = async (body: string, signal: AbortSignal | undefined, onDelta: LlmRequest["onDelta"], onSent: LlmRequest["onSent"]): Promise<LlmResponse> => {
+    const req = { signal, onDelta };
+    let wireBody: string | undefined = body;
     let slot = 0;
     for (let i = 1; i < HELPERS; i++) if (load[i] < load[slot]) slot = i;
     load[slot]++;
@@ -90,20 +93,21 @@ export function pooledLlm(env: Env, direct: Llm): Llm {
       return new LlmError(`A helper could not carry this model call: ${why}`, { retryable: true });
     };
     try {
-      const wire: Wire = { model: req.model, system: req.system, messages: req.messages, tools: req.tools, maxOutput: req.maxOutput, purpose: req.purpose };
       let res: Response;
       try {
         res = await ns.get(ns.idFromName(`caller-${slot}`)).fetch(`${INTERNAL}/call`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-scholium-key": await internalKey(env.SCHOLIUM_SECRET) },
-          body: JSON.stringify(wire),
+          body: wireBody,
           signal: req.signal,
         });
+        wireBody = undefined;
       } catch (e) {
         if (isAbort(e) || req.signal?.aborted) throw abortError();
         throw infra(errText(e));
       }
       if (!res.ok || !res.body) throw infra(`it answered ${res.status}`);
+      onSent?.(true);
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
@@ -149,18 +153,19 @@ export function pooledLlm(env: Env, direct: Llm): Llm {
     get maxParallel() {
       return open() ? POOLED_CALLS : DIRECT_CALLS;
     },
-    async call(req) {
+    call(req) {
       // A call that carries files stays here: the files are read from this run's own storage.
       const files = req.messages.some((m) => m.role === "user" && m.attachments?.length);
       if (own < DIRECT_CALLS || files || !open()) {
         own++;
-        try {
-          return await direct.call(req);
-        } finally {
+        const p = direct.call(req).finally(() => {
           own--;
-        }
+        });
+        req.onSent?.(false);
+        return p;
       }
-      return viaHelper(req);
+      const wire: Wire = { model: req.model, system: req.system, messages: req.messages, tools: req.tools, maxOutput: req.maxOutput, purpose: req.purpose };
+      return viaHelper(JSON.stringify(wire), req.signal, req.onDelta, req.onSent);
     },
     relay: (executor, system, command, signal) => direct.relay(executor, system, command, signal),
   };
